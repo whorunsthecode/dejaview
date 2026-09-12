@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>deja-view &middot; slices</title>
+    <link rel="stylesheet" href="../viz/viz.css" />
+    <link rel="stylesheet" href="slices.css" />
+  </head>
+  <body class="viz-root">
+    <header>
+      <div class="head-row">
+        <h1 id="page-title">Slices</h1>
+        <div class="head-actions">
+          <button id="back" type="button" hidden>all slices</button>
+          <button id="refresh" type="button">refresh</button>
+        </div>
+      </div>
+      <p class="lede">
+        A themed piece of your reading, written out as one Markdown document you
+        can send to someone. Nothing is generated until you have seen exactly
+        what would go in it.
+      </p>
+    </header>
+
+    <main>
+      <!-- ---- the library ---- -->
+      <section id="library-view">
+        <h2>Themes in your open tabs</h2>
+        <p class="note">
+          Grouped by what they have in common, or by the name you gave the tab
+          group. Tabs that fall into no theme are left out rather than swept into
+          a pile called &ldquo;other&rdquo;.
+        </p>
+        <div id="themes" class="cards"></div>
+
+        <h2 class="spaced">Saved slices</h2>
+        <p class="note">
+          Kept on this machine. Reopen one to edit it, or regenerate it once you
+          have read more on the theme &mdash; anything you removed stays removed.
+        </p>
+        <div id="saved" class="cards"></div>
+      </section>
+
+      <!-- ---- the review ---- -->
+      <section id="review-view" hidden>
+        <h2>What would go in</h2>
+
+        <div class="field">
+          <label for="slice-title">Title</label>
+          <input id="slice-title" type="text" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label for="slice-intro">Intro line &mdash; optional, one or two sentences</label>
+          <textarea id="slice-intro" rows="2" spellcheck="true"></textarea>
+        </div>
+
+        <div id="review-summary" class="stat-row"></div>
+
+        <details id="excluded-box" hidden>
+          <summary id="excluded-summary"></summary>
+          <p class="note">
+            Left out because of where they came from, not what they say. This is a
+            default, not a judgement, and the list will not catch everything &mdash;
+            check the list above as well. Switch any of them back on to include it.
+          </p>
+          <ul id="excluded-list" class="items"></ul>
+        </details>
+
+        <ul id="review-list" class="items"></ul>
+
+        <div class="review-actions">
+          <button id="read-missing" type="button" hidden></button>
+          <div class="spacer"></div>
+          <button id="cancel-review" type="button">cancel</button>
+          <button id="generate" type="button" class="primary">generate the document</button>
+        </div>
+      </section>
+
+      <!-- ---- the finished document ---- -->
+      <section id="slice-view" hidden>
+        <div class="head-row">
+          <h2 id="slice-heading"></h2>
+          <div class="head-actions">
+            <button id="slice-edit" type="button">edit</button>
+            <button id="slice-regenerate" type="button">regenerate</button>
+            <button id="slice-delete" type="button">delete</button>
+          </div>
+        </div>
+        <p id="slice-meta" class="note"></p>
+
+        <div class="head-actions send-row">
+          <button id="slice-copy" type="button">copy</button>
+          <button id="slice-download" type="button">download .md</button>
+          <button id="slice-obsidian" type="button">obsidian</button>
+          <button id="slice-notion" type="button">notion</button>
+          <button id="slice-gdocs" type="button">google doc</button>
+        </div>
+
+        <p id="slice-status" class="note" role="status"></p>
+        <pre id="slice-body"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="slices.js"></script>
+  </body>
+</html>

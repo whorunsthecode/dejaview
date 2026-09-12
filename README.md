@@ -127,6 +127,52 @@ default), the confidence threshold, and the feature's own scoreboard — how man
 nudges it has made and what share of them you opened. If it is not earning its
 interruptions, that number is where you will see it.
 
+## Slices
+
+A slice is a themed piece of your reading, written out as one self-contained
+Markdown document you can send to someone.
+
+Two ways in:
+
+- **Habits → what you are reading about → export this theme.** Your open tabs are
+  grouped by what they have in common, or by the name you gave the tab group.
+  Tabs that fall into no theme are left out rather than swept into a pile called
+  "other", and a theme is only ever named after a word a person wrote — a title
+  or a group name, never a hostname, or you end up with a theme called "medium".
+- **The panel's result → the slice button.** The sources a run actually cited are
+  a result set like any other, so they go through the same screen.
+
+**Nothing is generated until you confirm.** The review screen comes first and
+shows every item that would be included, with its title, domain, first-read date,
+and the exact passage that would be quoted. Each has a toggle. You add the title
+and an intro line there.
+
+- **Anything on the sensitive domain list is switched off before you see it** —
+  health, money, adult, dating, legal and immigration, job hunting, crisis
+  services, religion and politics, and private inboxes — and the count is shown
+  whether or not you expand the list. Filtering you cannot see is worse than no
+  filtering, because you would trust the result more than it deserves. It matches
+  on the domain, not the page text, so it will miss things: the review screen is
+  the safeguard, the list only sets the defaults. Add your own with
+  `chrome.storage.local.set({ SENSITIVE_DOMAINS: ["acme.corp"] })`.
+- **A page that was never read has no passage**, and says so rather than showing
+  an empty quote. There is a button to read those, which is the only part of this
+  flow that opens anything.
+
+The document has the title, the intro, then each item as a heading with its link,
+date, a one-sentence note on why it is in the slice, and the quoted passage —
+grouped by sub-theme when the model finds a real one — and a closing paragraph on
+what the collection adds up to.
+
+Without an OpenRouter key it still generates, but the grouping and commentary are
+assembled mechanically and **the document's own footer says so**. A reader who
+cannot tell model prose from a word count will trust the wrong half.
+
+Slices are kept on this machine. Reopen one to edit it, or **regenerate** it after
+reading more on the theme: anything new that matches is added, and everything you
+removed stays removed. From a saved slice you can copy it, download the `.md`, or
+send it to Obsidian, Notion or Google Docs.
+
 ## Habits
 
 Press **habits** in the panel header for a visualiser of what you are actually reading:
@@ -180,6 +226,11 @@ only through the message types in `shared/messages.js`.
 - `extension/rediscovery/budget.js` — one an hour, three a day, and the accept rate.
 - `extension/rediscovery/dwell.js` — foreground time, and the weighted draw behind *surprise me*.
 - `extension/rediscovery/engine.js` — the watcher that puts those together.
+- `extension/slices/themes.js` — the clustering behind "what you are reading about".
+- `extension/slices/sensitive.js` — the domain list a slice excludes by default.
+- `extension/slices/review.js` — what the review screen shows before anything is written.
+- `extension/slices/render.js` — the Markdown document itself.
+- `extension/slices/compose.js` — the model step, and what the document says without one.
 - `extension/panel/export.js` — the Obsidian URI plan, chunked so nothing is truncated.
 - `extension/panel/notion.js` — markdown parsed into Notion blocks.
 - `extension/panel/gdocs.js` — the Google OAuth flow and the Drive upload.
@@ -260,6 +311,13 @@ Beyond that:
   once. See [agent/PROGRESSIVE.md](agent/PROGRESSIVE.md) for the limits and how to clear
   the stored data. `dejavu.clearLocalCorpus()` in the worker console clears the
   text cache, the tab index, and rediscovery's log and dwell table together.
+- A **slice** is the only thing here built to be shared, so it is the only place
+  where something private leaving the machine is possible. It is gated on an
+  explicit confirmation after a screen showing every item, with the sensitive
+  domain list applied and counted first. Saved slices stay local until you press
+  one of the send buttons. When a model writes the prose, the titles, dates and
+  already-extracted passages of the items you kept are what it is sent — never
+  page text, and never an item you removed.
 - Your API keys and connector credentials live in `chrome.storage.local`, on this
   machine, and are sent only to the service each belongs to: OpenRouter, Exa, Notion
   or Google. A finished skill goes to a connector only when you press its button.

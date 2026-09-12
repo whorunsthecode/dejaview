@@ -14,6 +14,7 @@ import { obsidianTarget } from "./export.js";
 import { createNotionPage } from "./notion.js";
 import { createGoogleDoc } from "./gdocs.js";
 import { SETTING_KEYS as REDISCOVERY_KEYS, normalizeSettings } from "../rediscovery/settings.js";
+import { sourceUrls, handOff } from "../slices/handoff.js";
 
 const els = {
   trace: document.getElementById("trace"),
@@ -31,6 +32,7 @@ const els = {
   download: document.getElementById("download"),
   obsidian: document.getElementById("obsidian"),
   copy: document.getElementById("copy"),
+  slice: document.getElementById("slice"),
   notion: document.getElementById("notion"),
   gdocs: document.getElementById("gdocs"),
   notionToken: document.getElementById("notion-token"),
@@ -374,6 +376,32 @@ els.gdocs?.addEventListener("click", () =>
     });
   })
 );
+
+/**
+ * Export the pages this run actually cited as a shareable slice.
+ *
+ * The sources are a result set like any other, so they go through the same
+ * review screen: what would be included, what was filtered out and why, and
+ * nothing written until it is confirmed.
+ */
+els.slice?.addEventListener("click", async () => {
+  if (!currentSkill) return;
+
+  const urls = sourceUrls(currentSkill);
+  if (!urls.length) {
+    renderEvent(panelEvent("note", "Nothing to export.", "This skill cites no sources with a URL."));
+    return;
+  }
+
+  await withBusy(els.slice, async () => {
+    const url = await handOff({
+      urls,
+      label: skillDescription(currentSkill) || skillFilename(currentSkill).replace(/\.md$/, ""),
+      terms: []
+    });
+    if (url) await chrome.tabs.create({ url });
+  });
+});
 
 /**
  * Hand a URL to the OS protocol handler.

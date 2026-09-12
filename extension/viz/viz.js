@@ -20,6 +20,7 @@ import {
   formatDay
 } from "./stats.js";
 import { listTabs } from "../tabs.js";
+import { clusterThemes } from "../slices/themes.js";
 
 const els = {
   tabStats: document.getElementById("tab-stats"),
@@ -33,6 +34,8 @@ const els = {
   chartHistoryDomains: document.getElementById("chart-history-domains"),
   loadHistory: document.getElementById("load-history"),
   refresh: document.getElementById("refresh"),
+  themes: document.getElementById("themes"),
+  allSlices: document.getElementById("all-slices"),
   tooltip: document.getElementById("tooltip")
 };
 
@@ -219,6 +222,57 @@ async function renderTabs() {
   columnChart(els.chartAge, tabsByYear(tabs), { unit: "tabs" });
   barChart(els.chartTabDomains, topDomains(tabs, 8), { unit: "tabs" });
   barChart(els.chartGroups, tabsByGroup(tabs, 8), { unit: "tabs" });
+
+  renderThemes(tabs);
+}
+
+/** Where the slice page lives, however this page was opened. */
+const sliceUrl = (query) => chrome.runtime.getURL("extension/slices/slices.html") + query;
+
+/**
+ * The themes the open tabs fall into, each with a way out to an export.
+ *
+ * This is the one thing on this page that could put words in the user's mouth,
+ * so a theme says only how many pages it holds, when they were read, and what
+ * it was named after. It never characterises them.
+ */
+function renderThemes(tabs) {
+  const themes = clusterThemes(tabs);
+  els.themes.replaceChildren();
+
+  if (!themes.length) {
+    emptyNote(els.themes, "No themes yet — this needs a few tabs on one subject, or a tab group with a name.");
+    return;
+  }
+
+  for (const theme of themes) {
+    const card = document.createElement("div");
+    card.className = "theme-card";
+
+    const name = document.createElement("h3");
+    name.textContent = theme.label;
+
+    const meta = document.createElement("p");
+    meta.className = "theme-meta";
+    const parts = [theme.size + (theme.size === 1 ? " page" : " pages")];
+    if (theme.span) parts.push(formatDay(theme.span.from) + " to " + formatDay(theme.span.to));
+    if (theme.undated) parts.push(theme.undated + " undated");
+    meta.textContent = parts.join(" · ");
+
+    const source = document.createElement("p");
+    source.className = "theme-terms";
+    source.textContent = theme.source === "group" ? "a tab group you named" : theme.terms.slice(0, 5).join(", ");
+
+    const action = document.createElement("button");
+    action.type = "button";
+    action.textContent = "export this theme";
+    action.addEventListener("click", () => {
+      chrome.tabs.create({ url: sliceUrl("?theme=" + encodeURIComponent(theme.id)) });
+    });
+
+    card.append(name, meta, source, action);
+    els.themes.appendChild(card);
+  }
 }
 
 /** History is read only when asked for, and only here. */
@@ -256,6 +310,10 @@ async function renderHistory() {
     els.loadHistory.disabled = false;
   }
 }
+
+els.allSlices?.addEventListener("click", () => {
+  chrome.tabs.create({ url: sliceUrl("") });
+});
 
 els.loadHistory.addEventListener("click", renderHistory);
 els.refresh.addEventListener("click", () => {

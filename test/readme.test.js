@@ -77,6 +77,24 @@ test("rediscovery's switch really is checked before it does anything", () => {
   assert.match(engine, /async remember\(session\) \{\s*const settings = await this\.settings\(\);\s*if \(!settings\.REDISCOVERY_ENABLED\) return null;/);
 });
 
+test("the slice flow's two promises are stated where they can be checked", () => {
+  // Both are the kind of claim a reader has to be able to hold the code to.
+  assert.match(README, /Nothing is generated until you confirm/);
+  assert.match(README, /sensitive domain list is switched off before you see it/);
+
+  const engine = readFileSync(new URL("extension/slices/engine.js", root), "utf8");
+  // A draft carries no document: generation happens in generate(), on confirm.
+  assert.match(engine, /kind: KIND\.draft, markdown: null/);
+  // And generate() treats the confirmed set as authoritative.
+  assert.match(engine, /for \(const entry of draft\.entries\) entry\.included = kept\.has\(entry\.key\);/);
+});
+
+test("the sensitive list is described as a default, not a guarantee", () => {
+  // Overstating it would make the review screen feel optional, which is the one
+  // safeguard that actually holds.
+  assert.match(README, /it will miss things|the review screen is\s+the safeguard/);
+});
+
 test("the README does not still claim history is never read", () => {
   // The sentence the old version carried. Leaving it in beside the habits page
   // would be a false promise, which is worse than no promise.

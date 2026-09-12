@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@mozilla/readability": "^0.6.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1"
   }
 }

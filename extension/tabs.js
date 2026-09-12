@@ -45,7 +45,7 @@ export async function listTabs() {
  * @param {any} t chrome.tabs.Tab
  * @returns {Promise<import("../shared/types.js").Tab>}
  */
-async function toTab(t, visits, groups) {
+export async function toTab(t, visits = new Map(), groups = new Map()) {
   // A tab still loading carries pendingUrl and no url yet.
   const url = t.url || t.pendingUrl || "";
 

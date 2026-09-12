@@ -58,6 +58,21 @@ test('history off performs zero discovery, reopen or selection calls', async () 
   const f = fixture({ enabled: false }); const result = await runAgent(f.options);
   assert.equal(result.status, 'complete'); assert.equal(f.stats.lookups, 0); assert.equal(f.stats.opens, 0); assert.equal(f.stats.historyModels, 0);
 });
+test('parallel history reads keep distinct tool IDs and the shared read cap', async () => {
+  const f = fixture({ count: 10 });
+  f.options.readConcurrency = 4;
+  const read = f.options.tabSource.read;
+  let active = 0, peak = 0;
+  f.options.tabSource.read = async id => {
+    active++; peak = Math.max(peak, active);
+    try { await new Promise(resolve => setTimeout(resolve, 3)); return await read(id); }
+    finally { active--; }
+  };
+  const result = await runAgent(f.options);
+  assert.equal(result.status, 'complete'); assert.equal(result.reads, 8); assert.equal(peak, 4);
+  const ids = result.messages.filter(m => m.role === 'tool' && m.tool_call_id.startsWith('history-read-')).map(m => m.tool_call_id);
+  assert.equal(ids.length, 7); assert.equal(new Set(ids).size, 7);
+});
 test('gap then history, verified highlights, coverage reassessment and history citations survive', async () => {
   const f = fixture(); const result = await runAgent(f.options);
   assert.equal(result.status, 'complete'); assert.equal(result.reads, 3); assert.equal(result.searches, 0);

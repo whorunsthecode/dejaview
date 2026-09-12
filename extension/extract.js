@@ -40,6 +40,9 @@ export async function readTab(tabId, opts = {}) {
   // to us, so a window full of chrome:// tabs costs nothing.
   try {
     const tab = await chrome.tabs.get(tabId);
+    if (tab?.discarded || tab?.frozen || tab?.status === 'loading') {
+      return { id: tabId, text: null, textStatus: 'blocked', error: 'Page is unloaded or loading; open it manually before reading.' };
+    }
     const url = tab?.url || tab?.pendingUrl || "";
     if (NEVER_INJECTABLE.test(url) || WEBSTORE.test(url)) {
       return { id: tabId, text: null, textStatus: "blocked", error: `cannot inject into ${url.split(":")[0]}: pages` };

@@ -102,6 +102,9 @@ only through the message types in `shared/messages.js`.
 - `extension/extract.js` — on-demand Readability, truncated to ~6000 characters.
 - `extension/highlight.js` — normalised fuzzy matching of verbatim quotes in a page.
 - `extension/history.js` — the bounded recent-history lookup, used only when asked.
+- `extension/peek.js` — cheap previews, capped short so they can never stand in as evidence.
+- `extension/tab-index.js` — the IndexedDB metadata index, kept fresh on tab events.
+- `extension/text-cache.js` — extracted text, cached by hash with revision checks.
 - `extension/agent-bridge.js` — the seam: gives the agent its TabSource, credentials and
   the `SKILL.md` serializer.
 - `extension/viz/` — the habits page.
@@ -125,8 +128,11 @@ Every permission in `manifest.json` and the one thing it is for:
 | `sidePanel`             | The panel itself.                                                      |
 | `host_permissions: <all_urls>` | Reading a chosen tab can mean any site, so the grant cannot be narrowed ahead of time. |
 
-There is **no content script**. Both page-side jobs run through `chrome.scripting`, so
-nothing is injected into a page until the agent has decided that page is worth opening.
+There is **no content script** declared in the manifest. Both page-side jobs run through
+`chrome.scripting`, so nothing is injected into a page until the agent has decided that
+page is worth opening. One exception worth naming: after an on-demand read, a small
+revision observer stays behind in that page so a cached extract can be invalidated when
+the page changes.
 
 ## Privacy
 
@@ -144,8 +150,16 @@ Two features go further, and both are off until you turn them on:
 Neither runs in the background, and neither happens unless you ask for it in that session.
 Beyond that:
 
-- Page text is extracted only from tabs the agent opens, never in bulk, and never stored —
-  it lives in the run and is gone when the run ends.
+- Page text is extracted only from tabs the agent opens, never in bulk. Text it did read
+  is cached locally by URL and SHA-256 hash for up to 24 hours, at most 100 entries, and
+  checked against the page's revision before reuse.
+- Open-tab **metadata** is kept in an IndexedDB index that updates on tab events, so a run
+  does not re-enumerate and re-date everything. Metadata only; no page text, and nothing
+  from an incognito window is persisted.
+- Previews are cheap and deliberately weak evidence: `peek_tab` returns at most 600
+  characters and can never supply a quote. At most four previews or reads are in flight at
+  once. See [agent/PROGRESSIVE.md](agent/PROGRESSIVE.md) for the limits and how to clear
+  the stored data.
 - Your API keys live in `chrome.storage.local`, on this machine, and are sent only to
   OpenRouter and, if you add a key for it, Exa.
 - Nothing is sent anywhere else. There is no telemetry.

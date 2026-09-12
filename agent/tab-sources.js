@@ -1,10 +1,12 @@
 import { send, on } from '../shared/messages.js';
 import { isTab } from '../shared/types.js';
+import { MAX_PEEK_CHARS } from '../shared/peek.js';
 
 /**
  * @typedef {object} TabSource
  * @property {() => Promise<Array<import('../shared/types.js').Tab>>} list
  * @property {(id: number) => Promise<{id:number,text:string|null,textStatus:string}>} read
+ * @property {(id: number) => Promise<{id:number,description:string,heading:string,paragraph:string,textStatus:string}>} [peek]
  */
 export class StubTabSource {
   constructor(url = new URL('../shared/stubs.json', import.meta.url)) { this.url = url; }
@@ -18,6 +20,11 @@ export class StubTabSource {
     const tab = (await this.list()).find(tab => tab.id === id);
     if (!tab) throw new Error(`Unknown tab ${id}`);
     return { id, text: tab.text, textStatus: tab.textStatus };
+  }
+  async peek(id) {
+    const tab = (await this.list()).find(tab => tab.id === id);
+    if (!tab) throw new Error(`Unknown tab ${id}`);
+    return { id, description: '', heading: '', paragraph: (tab.text ?? '').slice(0, MAX_PEEK_CHARS), textStatus: tab.textStatus };
   }
 }
 
@@ -36,6 +43,7 @@ export class MessageTabSource {
   }
   list() { return this.request('list'); }
   read(id) { return this.request('read', id); }
+  peek(id) { return this.request('peek', id); }
   request(operation, id) {
     const requestId = globalThis.crypto.randomUUID();
     const p = this.protocol;

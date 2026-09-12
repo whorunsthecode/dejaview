@@ -20,7 +20,7 @@ import {
   historySummary,
   formatDay
 } from "../extension/viz/stats.js";
-import { obsidianTarget, noteName, vaultPath, URI_LIMIT } from "../extension/panel/export.js";
+import { obsidianTarget, chunkMarkdown, noteName, vaultPath, URI_LIMIT, MAX_CHUNKS } from "../extension/panel/export.js";
 
 const MAR_2024 = 1710460800000;
 const FEB_2024 = 1706745600000;
@@ -189,6 +189,12 @@ test("formatDay admits when there is no date", () => {
 
 // ---- obsidian ---------------------------------------------------------
 
+/** What Obsidian does with a parameter: percent-decode it, nothing more. */
+function obsidianDecode(url, key) {
+  const raw = new RegExp("[?&]" + key + "=([^&]*)").exec(url);
+  return raw ? decodeURIComponent(raw[1]) : null;
+}
+
 test("the note name drops the extension and characters Obsidian refuses", () => {
   assert.equal(noteName("fix-device-flow-refresh.md"), "fix-device-flow-refresh");
   assert.equal(noteName("a/b:c*d?.md"), "a-b-c-d");
@@ -206,7 +212,7 @@ test("a folder is joined without leading or doubled slashes", () => {
   assert.equal(vaultPath(undefined, "x"), "x");
 });
 
-test("a short skill rides inside the obsidian:// URL", () => {
+test("a short skill rides inside one obsidian:// URL", () => {
   const target = obsidianTarget({
     vault: "notes",
     folder: "skills",
@@ -214,38 +220,19 @@ test("a short skill rides inside the obsidian:// URL", () => {
     markdown: "# short"
   });
   assert.equal(target.mode, "uri");
+  assert.equal(target.chunks, 1);
   assert.equal(target.path, "skills/fix-device-flow-refresh");
-  assert.match(target.url, /^obsidian:\/\/new\?/);
-  assert.match(target.url, /vault=notes/);
-  assert.match(target.url, /content=/);
+  assert.match(target.urls[0], /^obsidian:\/\/new\?/);
+  assert.match(target.urls[0], /vault=notes/);
 });
-
-test("a long skill goes via the clipboard instead of being truncated", () => {
-  const target = obsidianTarget({
-    vault: "notes",
-    filename: "big.md",
-    markdown: "x".repeat(URI_LIMIT + 1)
-  });
-  assert.equal(target.mode, "clipboard");
-  assert.doesNotMatch(target.url, /content=/, "content must not ride a URL this long");
-  assert.match(target.url, /append=true/);
-});
-
-/** What Obsidian does with a parameter: percent-decode it, nothing more. */
-function obsidianDecode(url, key) {
-  const raw = new RegExp("[?&]" + key + "=([^&]*)").exec(url);
-  return raw ? decodeURIComponent(raw[1]) : null;
-}
 
 test("markdown is encoded, so a heading or newline cannot break the URL", () => {
   const markdown = "# Title\n\n- a & b\n";
   const target = obsidianTarget({ vault: "my notes", filename: "x.md", markdown });
 
-  assert.equal(target.mode, "uri");
-  assert.doesNotMatch(target.url, /\n/);
-  // Decoded the way Obsidian decodes it, not with a parser that also accepts "+".
-  assert.equal(obsidianDecode(target.url, "content"), markdown);
-  assert.equal(obsidianDecode(target.url, "vault"), "my notes");
+  assert.doesNotMatch(target.urls[0], /\n/);
+  assert.equal(obsidianDecode(target.urls[0], "content"), markdown);
+  assert.equal(obsidianDecode(target.urls[0], "vault"), "my notes");
 });
 
 test("spaces are percent-encoded, never as +", () => {
@@ -259,61 +246,84 @@ test("spaces are percent-encoded, never as +", () => {
     markdown: "one two three"
   });
 
-  assert.match(target.url, /vault=my%20notes/);
-  assert.match(target.url, /content=one%20two%20three/);
-  assert.doesNotMatch(target.url, /\+/, "a + anywhere in the URL means spaces will arrive broken");
-  assert.equal(obsidianDecode(target.url, "content"), "one two three");
-  assert.equal(obsidianDecode(target.url, "file"), "my skills/fix the device flow");
+  assert.match(target.urls[0], /vault=my%20notes/);
+  assert.match(target.urls[0], /content=one%20two%20three/);
+  assert.doesNotMatch(target.urls[0], /\+/, "a + anywhere means spaces arrive broken");
+  assert.equal(obsidianDecode(target.urls[0], "file"), "my skills/fix the device flow");
 });
 
-test("a URL built for the uri path always fits under the handler ceiling", () => {
+test("a long skill is split across appends rather than truncated", () => {
+  const markdown = readFileSync(new URL("../extension/panel/demo-skill.md", import.meta.url), "utf8");
+  const target = obsidianTarget({ filename: "fix-device-flow-refresh.md", markdown });
+
+  assert.equal(target.mode, "append");
+  assert.ok(target.urls.length > 1, "expected the fixture to need more than one call");
+});
+
+test("every generated URL fits under the protocol handler ceiling", () => {
   // Windows cuts a protocol URL near 2048. The cut lands inside a percent-escape,
-  // decoding throws, and Obsidian drops content entirely — an empty note with the
-  // right name. So uri mode must never emit a URL anywhere near that.
+  // decoding throws, and Obsidian drops content entirely — a correctly named,
+  // completely empty note. That is the bug this budget exists to prevent.
   assert.ok(URI_LIMIT <= 2048, "URI_LIMIT is above what Windows will pass through");
 
-  for (const size of [10, 500, 1000, 1500, 1900, 2500, 8000]) {
+  for (const size of [10, 500, 2000, 5000, 12000]) {
     const target = obsidianTarget({
       vault: "notes",
       folder: "skills",
       filename: "x.md",
       markdown: "word ".repeat(Math.ceil(size / 5)).slice(0, size)
     });
-    if (target.mode === "uri") {
-      assert.ok(target.url.length <= URI_LIMIT, size + " bytes produced a " + target.url.length + " char URL");
+    for (const url of target.urls) {
+      assert.ok(url.length <= URI_LIMIT, size + " bytes produced a " + url.length + " char URL");
     }
   }
 });
 
-test("a realistic skill takes the clipboard path, not a silently empty note", () => {
-  const real = readFileSync(new URL("../extension/panel/demo-skill.md", import.meta.url), "utf8");
-  const target = obsidianTarget({
-    vault: "notes",
-    folder: "skills",
-    filename: "fix-device-flow-refresh.md",
-    markdown: real
-  });
+test("the chunks reassemble into exactly the original skill", () => {
+  const markdown = readFileSync(new URL("../extension/panel/demo-skill.md", import.meta.url), "utf8");
+  const target = obsidianTarget({ vault: "notes", filename: "x.md", markdown });
 
-  assert.ok(real.length > URI_LIMIT, "the fixture is no longer big enough to exercise this");
-  assert.equal(target.mode, "clipboard");
-  assert.equal(target.path, "skills/fix-device-flow-refresh");
+  const rebuilt = target.urls.map((u) => obsidianDecode(u, "content")).join("");
+  assert.equal(rebuilt, markdown, "a chunk boundary lost or duplicated content");
 });
 
-test("the clipboard URL is encoded the same way", () => {
-  const target = obsidianTarget({
-    vault: "my notes",
-    filename: "big note.md",
-    markdown: "x".repeat(URI_LIMIT + 1)
-  });
+test("only the first call creates the note; the rest append in order", () => {
+  const markdown = "line of text here\n".repeat(400);
+  const target = obsidianTarget({ vault: "notes", filename: "x.md", markdown });
 
-  assert.equal(target.mode, "clipboard");
-  assert.doesNotMatch(target.url, /\+/);
-  assert.equal(obsidianDecode(target.url, "file"), "big note");
+  assert.ok(target.urls.length > 2);
+  assert.doesNotMatch(target.urls[0], /append=true/, "the first call must create, not append");
+  for (const url of target.urls.slice(1)) assert.match(url, /append=true/);
+});
+
+test("chunking splits on line breaks rather than mid-word", () => {
+  const chunks = chunkMarkdown("alpha bravo\ncharlie delta\necho foxtrot\n".repeat(40), 300);
+
+  assert.ok(chunks.length > 1);
+  for (const chunk of chunks.slice(0, -1)) {
+    assert.ok(chunk.endsWith("\n"), "chunk did not end on a line break");
+  }
+});
+
+test("chunking never loses or duplicates a character", () => {
+  const text = "alpha bravo\ncharlie delta\n".repeat(100);
+  for (const budget of [120, 300, 900]) {
+    assert.equal(chunkMarkdown(text, budget).join(""), text, "budget " + budget);
+  }
+});
+
+test("a skill needing too many calls falls back to manual delivery", () => {
+  const target = obsidianTarget({ vault: "notes", filename: "x.md", markdown: "x".repeat(200000) });
+
+  assert.equal(target.mode, "manual");
+  assert.deepEqual(target.urls, []);
+  assert.ok(target.chunks > MAX_CHUNKS);
 });
 
 test("no vault is a valid target — Obsidian falls back to the last used one", () => {
   const target = obsidianTarget({ filename: "x.md", markdown: "body" });
+
   assert.equal(target.mode, "uri");
-  assert.doesNotMatch(target.url, /vault=/);
-  assert.match(target.url, /file=x/);
+  assert.doesNotMatch(target.urls[0], /vault=/);
+  assert.match(target.urls[0], /file=x/);
 });

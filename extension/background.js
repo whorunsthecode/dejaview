@@ -6,13 +6,15 @@
  * state in module scope that matters across wakes.
  */
 import { MSG, on } from "../shared/messages.js";
-import { listTabs, countDated, contractViolations, formatFirstVisit } from "./tabs.js";
+import { countDated, contractViolations, formatFirstVisit } from "./tabs.js";
 import { readTab, readTabs, MAX_CHARS } from "./extract.js";
 import { highlightTab } from "./highlight.js";
-import { loadEnv, startRun, isRunning, renderSkill } from "./agent-bridge.js";
+import { loadEnv, startRun, isRunning, renderSkill, indexedListTabs as listTabs, getBrowserServices, clearLocalCorpus } from "./agent-bridge.js";
 import { readLimit } from '../shared/limits.js';
 
 const manifest = chrome.runtime.getManifest();
+// Register tab listeners synchronously at worker startup; only metadata is indexed.
+getBrowserServices().index.queue.catch(error => console.warn('dejavu: index startup failed', error.message));
 
 // Clicking the toolbar icon opens the side panel. This setting persists, so
 // registering it once at install is enough.
@@ -115,4 +117,4 @@ on(MSG.HIGHLIGHT, async (payload) => {
  * Extraction is deliberately reachable only from here and from the agent's
  * read_tab tool. Nothing in this worker extracts text on its own.
  */
-globalThis.dejavu = { listTabs, readTab, readTabs, highlightTab, loadEnv, renderSkill, MAX_CHARS };
+globalThis.dejavu = { listTabs, readTab, readTabs, highlightTab, loadEnv, renderSkill, clearLocalCorpus, MAX_CHARS };

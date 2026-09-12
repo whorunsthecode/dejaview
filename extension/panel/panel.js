@@ -244,42 +244,58 @@ els.obsidian?.addEventListener("click", async () => {
     markdown: currentSkill
   });
 
-  if (target.mode === "clipboard") {
-    // Copied before anything is awaited: clipboard writes need the transient
-    // activation from this click, and an await can spend it.
+  // Only when the note is too large to write through the URL at all.
+  if (target.mode === "manual") {
     const copied = await copyText(currentSkill);
-    if (!copied.ok) {
-      renderEvent(
-        panelEvent(
-          "error",
-          "Could not copy the skill, so Obsidian was not opened.",
-          copied.error + " — use download instead."
-        )
-      );
-      return;
-    }
     renderEvent(
-      panelEvent(
-        "note",
-        "Skill copied — press Ctrl+V in the note Obsidian just opened.",
-        currentSkill.length +
-          " characters, too long for an obsidian:// URL. Copied via " +
-          copied.via +
-          "."
-      )
+      copied.ok
+        ? panelEvent(
+            "note",
+            "Skill copied — paste it into Obsidian.",
+            "Too large to write through obsidian:// (" + target.chunks + " calls needed)."
+          )
+        : panelEvent("error", "Too large for Obsidian, and the copy failed.", copied.error + " — use download.")
     );
-  } else {
-    renderEvent(panelEvent("note", "Sent to Obsidian.", target.path + " · " + target.url.length + " char URL"));
+    return;
   }
 
+  // Written straight into the note: the first call creates it, any others append
+  // in order. Sequential, because two protocol launches at once can arrive out of
+  // order and scramble the note.
   try {
-    await chrome.tabs.create({ url: target.url, active: true });
-  } catch {
-    renderEvent(
-      panelEvent("error", "Obsidian did not open.", "Is it installed, with a vault open?")
-    );
+    for (let i = 0; i < target.urls.length; i++) {
+      openProtocol(target.urls[i]);
+      if (i < target.urls.length - 1) await sleep(350);
+    }
+  } catch (err) {
+    renderEvent(panelEvent("error", "Obsidian did not open.", err.message));
+    return;
   }
+
+  renderEvent(
+    panelEvent(
+      "note",
+      "Wrote " + target.path + " to Obsidian.",
+      target.chunks === 1 ? "One call." : target.chunks + " calls, appended in order."
+    )
+  );
 });
+
+/**
+ * Hand a URL to the OS protocol handler.
+ *
+ * An anchor click rather than chrome.tabs.create: creating a tab for a non-http
+ * scheme leaves a blank tab behind for every call, and this has to fire several
+ * times in a row.
+ */
+function openProtocol(url) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
 
 els.habits?.addEventListener("click", () => {
   chrome.tabs.create({ url: assetUrl("extension/viz/viz.html") });

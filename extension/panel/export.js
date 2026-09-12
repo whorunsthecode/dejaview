@@ -69,18 +69,93 @@ function query(pairs) {
     .join("&");
 }
 
+/** Beyond this many calls the note is better delivered another way. */
+export const MAX_CHUNKS = 12;
+
+/**
+ * Split markdown so each piece fits in a URL of its own once percent-encoded.
+ *
+ * Encoding is what decides the size, not the character count: a space and a
+ * newline each cost three characters, so the budget is measured against the
+ * encoded form rather than guessed from a ratio. Splits prefer a line break so
+ * a chunk boundary never lands inside a word.
+ *
+ * @param {string} markdown
+ * @param {number} budget encoded characters available for the content parameter
+ * @returns {string[]}
+ */
+export function chunkMarkdown(markdown, budget) {
+  const chunks = [];
+  let rest = markdown ?? "";
+
+  while (rest) {
+    if (encodeURIComponent(rest).length <= budget) {
+      chunks.push(rest);
+      break;
+    }
+
+    // Grow a candidate until it no longer fits, then back off to a line break.
+    let lo = 1;
+    let hi = rest.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (encodeURIComponent(rest.slice(0, mid)).length <= budget) lo = mid;
+      else hi = mid - 1;
+    }
+    if (lo < 1) lo = 1; // pathological: a single character over budget
+
+    let cut = lo;
+    const breakAt = rest.lastIndexOf("\n", cut);
+    if (breakAt > cut * 0.5) cut = breakAt + 1;
+
+    chunks.push(rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+
+  return chunks;
+}
+
+/**
+ * Plan how to deliver a skill to Obsidian.
+ *
+ * A short skill rides in one URL. A longer one is written across several: the
+ * first creates the note, the rest append in order. That keeps the clipboard out
+ * of it entirely, which matters because clipboard writes from a side panel can
+ * report success and still leave nothing to paste.
+ *
+ * @param {{vault?: string, folder?: string, filename: string, markdown: string}} opts
+ * @returns {{mode: "uri"|"append"|"manual", urls: string[], path: string, chunks: number}}
+ */
 export function obsidianTarget({ vault, folder, filename, markdown }) {
   const path = vaultPath(folder, noteName(filename));
   const base = [
     ["vault", vault],
     ["file", path]
   ];
+  const body = markdown ?? "";
 
-  // With content in the URI, Obsidian creates the note in one step.
-  const full = "obsidian://new?" + query([...base, ["content", markdown ?? ""]]);
-  if (full.length <= URI_LIMIT) return { mode: "uri", url: full, path };
+  const single = "obsidian://new?" + query([...base, ["content", body]]);
+  if (single.length <= URI_LIMIT) {
+    return { mode: "uri", urls: [single], path, chunks: 1 };
+  }
 
-  // Too long to survive the protocol handler. Create the note empty and let the
-  // user paste — the clipboard has no length limit worth worrying about.
-  return { mode: "clipboard", url: "obsidian://new?" + query([...base, ["append", "true"]]), path };
+  // Whatever is left for content once the fixed parameters are accounted for.
+  // Built literally rather than through query(), which drops empty values and
+  // would leave "&content=" out of the measurement.
+  const prefix = "obsidian://new?" + query([...base, ["append", "true"]]) + "&content=";
+  const budget = URI_LIMIT - prefix.length;
+
+  const chunks = chunkMarkdown(body, budget);
+  if (chunks.length > MAX_CHUNKS) {
+    // Too many round trips to be worth it; the caller offers copy or download.
+    return { mode: "manual", urls: [], path, chunks: chunks.length };
+  }
+
+  const urls = chunks.map((chunk, i) =>
+    i === 0
+      ? "obsidian://new?" + query([...base, ["content", chunk]])
+      : "obsidian://new?" + query([...base, ["append", "true"], ["content", chunk]])
+  );
+
+  return { mode: "append", urls, path, chunks: urls.length };
 }

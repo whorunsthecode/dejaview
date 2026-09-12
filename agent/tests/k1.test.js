@@ -113,7 +113,7 @@ test('OpenRouter sends tools and retries network failures only once', async () =
     requests++;
     assert.match(url, /openrouter/);
     const body = JSON.parse(init.body);
-    assert.equal(body.model, 'test-model'); assert.equal(body.tools.length, 5);
+    assert.equal(body.model, 'test-model'); assert.equal(body.tools.length, 6);
     if (requests === 1) throw new TypeError('network');
     return new Response(JSON.stringify({ choices: [{ message: reply(call('write_skill', payload)) }] }));
   };

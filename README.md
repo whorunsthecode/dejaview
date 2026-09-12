@@ -46,10 +46,12 @@ visited recently but no longer have open. See [agent/HISTORY.md](agent/HISTORY.m
 
 The result panel offers three targets:
 
-- **obsidian** — writes the note straight into your vault over the `obsidian://` URI
-  scheme. No server, no account, no OAuth. A long skill is copied to the clipboard and
-  the empty note opened instead, because a protocol URL is truncated silently and half a
-  note is worse than an explicit paste.
+- **obsidian** — opens the note in your vault over the `obsidian://` URI scheme. No
+  server, no account, no OAuth. Windows truncates a protocol URL near 2048 characters,
+  and the cut usually lands mid-escape, so Obsidian drops the content and leaves a
+  correctly named empty note. Rather than risk that, anything over 2000 characters — which
+  is most skills — is put on your clipboard and the note opened ready for **Ctrl+V**.
+  Only a short skill travels inside the URL.
 - **copy** — the markdown on your clipboard, for Google Docs, Notion, or a PR body.
 - **download** — a correctly named `.md`, taken from the skill's own frontmatter.
 
@@ -119,6 +121,7 @@ Every permission in `manifest.json` and the one thing it is for:
 | `history`               | Date an already-open tab. See Privacy below.                           |
 | `scripting`             | Inject Readability and the highlighter, only into tabs the agent picks. |
 | `storage`               | Hold your API keys locally so you type them once.                      |
+| `clipboardWrite`        | Put a finished skill on your clipboard for the Obsidian and copy buttons. |
 | `sidePanel`             | The panel itself.                                                      |
 | `host_permissions: <all_urls>` | Reading a chosen tab can mean any site, so the grant cannot be narrowed ahead of time. |
 
@@ -132,9 +135,9 @@ for URLs already in `chrome.tabs.query`, never a sweep of everything you have re
 
 Two features go further, and both are off until you turn them on:
 
-- **Include recent history** on a run does a bounded recent-history lookup, offering up to
-  50 metadata candidates for the model to choose from. Only selected pages are reopened
-  and read, sharing the eight-read limit with open tabs.
+- **Include recent history** on a run scans up to 10,000 recent URLs locally and offers at
+  most 200 metadata candidates for the model to choose from. Only selected pages are
+  reopened and read, sharing the page budget with open tabs.
 - **read history** on the habits page reads recent history to draw the charts. It is
   computed in the page, shown to you, and stored nowhere.
 
@@ -200,53 +203,5 @@ rather than passing it. Tests needing live API keys skip themselves without one.
   skill conversion, loose-match mode, gap-fill search, history discovery, fallback.
 - `shared/` — neither side edits without saying so. Data contract lives here.
 
-<<<<<<< HEAD
 The composition bridge in `extension/agent-bridge.js` injects browser sources into the
 agent host. Agent production modules do not import extension code or Chrome APIs.
-=======
-The composition bridge in `extension/agent-bridge.js` injects browser sources into
-the agent host. Agent production modules do not import extension code or Chrome APIs.
-
-## Permissions
-
-| Permission | Purpose |
-| --- | --- |
-| `tabs` | Enumerate open-tab metadata. |
-| `tabGroups` | Read the user's group titles. |
-| `scripting` | Extract and highlight selected pages on demand. |
-| `history` | Date open tabs and optionally discover recent pages. |
-| `storage` | Keep API credentials in local extension storage. |
-| `sidePanel` | Display the run and downloadable skill. |
-
-`host_permissions` includes `<all_urls>` so selected articles can be extracted
-and highlighted across sites. There is no content script running continuously.
-No build step and no `npm install` are needed to load the extension.
-
-Messages in `shared/messages.js`: `PING` checks worker status; `RUN` starts a run;
-`TRACE` streams progress; `HIGHLIGHT` marks verified quotes; `SKILL` delivers output.
-Browser extraction lives in `extension/extract.js`, highlights in
-`extension/highlight.js`, and the host in `agent/host.js`; contracts are validated
-by `shared/types.js`. Run `npm run run:local` for the CLI and `npm test` for tests.
-
-## Privacy
-
-By default, history is used only to date already-open tabs. With **Include recent
-history** enabled, a bounded recent-history lookup scans up to 10,000 URLs locally and produces up to 200 metadata
-candidates for model selection. Only selected pages are reopened and read, sharing
-the configured read limit with open tabs (8 by default; panel options 24 and 48).
-There is no background history collection.
-Dates mean earliest retained visits, not guaranteed first-ever visits.
-
-Large open-tab inventories are ranked locally to at most 50 metadata candidates
-before model triage, using goal keywords and group diversity. This heuristic can
-miss lexical mismatches; no ranking-quality guarantee is implied. Tight-mode
-passage extraction runs in batches of eight read pages; loose mode compares all
-selected pages together. CLI users can set `READ_LIMIT=24` or `READ_LIMIT=48`.
-Higher budgets increase latency and cost. Reads remain serial; there is no peek
-tool, persistent index, text cache, or discarded-tab recovery in this change.
-
-## Env
-
-The Node CLI loads keys from the ignored `.env`. The browser host reads extension
-storage populated by the panel; it does not load `.env`. Never package that file.
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa

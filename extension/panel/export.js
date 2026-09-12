@@ -11,11 +11,19 @@
  */
 
 /**
- * Protocol-handler URLs get truncated well below the browser's own URL ceiling,
- * and the failure is silent — Obsidian opens with the note cut off mid-sentence.
- * Past this length we hand the content over via the clipboard instead.
+ * The most a whole obsidian:// URL may be before the content has to go via the
+ * clipboard instead.
+ *
+ * Windows passes a protocol URL to its handler through the registry and cuts it
+ * near 2048 characters. The failure is worse than a truncated note: the cut
+ * usually lands inside a percent-escape, decoding the parameter throws, and
+ * Obsidian drops `content` entirely — so the note arrives correctly named and
+ * completely empty. 2000 leaves room for the vault and file parameters.
+ *
+ * Most real skills are several kilobytes, so the clipboard path is the normal
+ * one, not the exception.
  */
-export const URI_LIMIT = 6000;
+export const URI_LIMIT = 2000;
 
 /** Strip the characters Obsidian and the filesystem refuse in a note name. */
 export function noteName(filename, fallback = "skill") {
@@ -47,22 +55,32 @@ export function vaultPath(folder, name) {
  * @param {{vault?: string, folder?: string, filename: string, markdown: string}} opts
  * @returns {{mode: "uri"|"clipboard", url: string, path: string}}
  */
+/**
+ * Build a query string with percent-encoding.
+ *
+ * Deliberately not URLSearchParams: that encodes a space as "+", which is
+ * form-encoding. Obsidian percent-decodes its parameters, so a "+" arrives as a
+ * literal plus and every space in the note turns into one.
+ */
+function query(pairs) {
+  return pairs
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => key + "=" + encodeURIComponent(value))
+    .join("&");
+}
+
 export function obsidianTarget({ vault, folder, filename, markdown }) {
   const path = vaultPath(folder, noteName(filename));
-
-  const params = new URLSearchParams();
-  if (vault) params.set("vault", vault);
-  params.set("file", path);
+  const base = [
+    ["vault", vault],
+    ["file", path]
+  ];
 
   // With content in the URI, Obsidian creates the note in one step.
-  const withContent = new URLSearchParams(params);
-  withContent.set("content", markdown ?? "");
-  const full = "obsidian://new?" + withContent.toString();
-
+  const full = "obsidian://new?" + query([...base, ["content", markdown ?? ""]]);
   if (full.length <= URI_LIMIT) return { mode: "uri", url: full, path };
 
   // Too long to survive the protocol handler. Create the note empty and let the
   // user paste — the clipboard has no length limit worth worrying about.
-  params.set("append", "true");
-  return { mode: "clipboard", url: "obsidian://new?" + params.toString(), path };
+  return { mode: "clipboard", url: "obsidian://new?" + query([...base, ["append", "true"]]), path };
 }

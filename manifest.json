@@ -10,6 +10,7 @@
     "scripting",
     "history",
     "storage",
+    "clipboardWrite",
     "sidePanel"
   ],
   "host_permissions": [

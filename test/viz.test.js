@@ -7,6 +7,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   domainOf,
   topBy,
@@ -230,18 +231,84 @@ test("a long skill goes via the clipboard instead of being truncated", () => {
   assert.match(target.url, /append=true/);
 });
 
+/** What Obsidian does with a parameter: percent-decode it, nothing more. */
+function obsidianDecode(url, key) {
+  const raw = new RegExp("[?&]" + key + "=([^&]*)").exec(url);
+  return raw ? decodeURIComponent(raw[1]) : null;
+}
+
 test("markdown is encoded, so a heading or newline cannot break the URL", () => {
-  const target = obsidianTarget({
-    vault: "my notes",
-    filename: "x.md",
-    markdown: "# Title\n\n- a & b\n"
-  });
+  const markdown = "# Title\n\n- a & b\n";
+  const target = obsidianTarget({ vault: "my notes", filename: "x.md", markdown });
+
   assert.equal(target.mode, "uri");
   assert.doesNotMatch(target.url, /\n/);
-  assert.match(target.url, /vault=my\+notes|vault=my%20notes/);
-  // Round-trips back to exactly what went in.
-  const content = new URL(target.url).searchParams.get("content");
-  assert.equal(content, "# Title\n\n- a & b\n");
+  // Decoded the way Obsidian decodes it, not with a parser that also accepts "+".
+  assert.equal(obsidianDecode(target.url, "content"), markdown);
+  assert.equal(obsidianDecode(target.url, "vault"), "my notes");
+});
+
+test("spaces are percent-encoded, never as +", () => {
+  // URLSearchParams writes a space as "+", which is form-encoding. Obsidian
+  // percent-decodes, so a "+" reaches the note as a literal plus and every space
+  // in the skill becomes one. This is the bug that shipped.
+  const target = obsidianTarget({
+    vault: "my notes",
+    folder: "my skills",
+    filename: "fix the device flow.md",
+    markdown: "one two three"
+  });
+
+  assert.match(target.url, /vault=my%20notes/);
+  assert.match(target.url, /content=one%20two%20three/);
+  assert.doesNotMatch(target.url, /\+/, "a + anywhere in the URL means spaces will arrive broken");
+  assert.equal(obsidianDecode(target.url, "content"), "one two three");
+  assert.equal(obsidianDecode(target.url, "file"), "my skills/fix the device flow");
+});
+
+test("a URL built for the uri path always fits under the handler ceiling", () => {
+  // Windows cuts a protocol URL near 2048. The cut lands inside a percent-escape,
+  // decoding throws, and Obsidian drops content entirely — an empty note with the
+  // right name. So uri mode must never emit a URL anywhere near that.
+  assert.ok(URI_LIMIT <= 2048, "URI_LIMIT is above what Windows will pass through");
+
+  for (const size of [10, 500, 1000, 1500, 1900, 2500, 8000]) {
+    const target = obsidianTarget({
+      vault: "notes",
+      folder: "skills",
+      filename: "x.md",
+      markdown: "word ".repeat(Math.ceil(size / 5)).slice(0, size)
+    });
+    if (target.mode === "uri") {
+      assert.ok(target.url.length <= URI_LIMIT, size + " bytes produced a " + target.url.length + " char URL");
+    }
+  }
+});
+
+test("a realistic skill takes the clipboard path, not a silently empty note", () => {
+  const real = readFileSync(new URL("../extension/panel/demo-skill.md", import.meta.url), "utf8");
+  const target = obsidianTarget({
+    vault: "notes",
+    folder: "skills",
+    filename: "fix-device-flow-refresh.md",
+    markdown: real
+  });
+
+  assert.ok(real.length > URI_LIMIT, "the fixture is no longer big enough to exercise this");
+  assert.equal(target.mode, "clipboard");
+  assert.equal(target.path, "skills/fix-device-flow-refresh");
+});
+
+test("the clipboard URL is encoded the same way", () => {
+  const target = obsidianTarget({
+    vault: "my notes",
+    filename: "big note.md",
+    markdown: "x".repeat(URI_LIMIT + 1)
+  });
+
+  assert.equal(target.mode, "clipboard");
+  assert.doesNotMatch(target.url, /\+/);
+  assert.equal(obsidianDecode(target.url, "file"), "big note");
 });
 
 test("no vault is a valid target — Obsidian falls back to the last used one", () => {

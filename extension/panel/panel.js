@@ -10,10 +10,7 @@
 import { MSG, on, request } from "../../shared/messages.js";
 import { isTraceEvent } from "../../shared/types.js";
 import { skillFilename, skillDescription, replayDelay, elide } from "./format.js";
-<<<<<<< HEAD
 import { obsidianTarget } from "./export.js";
-=======
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 
 const els = {
   trace: document.getElementById("trace"),
@@ -23,16 +20,12 @@ const els = {
   goal: document.getElementById("goal"),
   run: document.getElementById("run"),
   includeHistory: document.getElementById("include-history"),
-<<<<<<< HEAD
-=======
   readLimit: document.getElementById("read-limit"),
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   result: document.getElementById("result"),
   skillName: document.getElementById("skill-name"),
   skillDesc: document.getElementById("skill-desc"),
   skillBody: document.getElementById("skill-body"),
   download: document.getElementById("download"),
-<<<<<<< HEAD
   obsidian: document.getElementById("obsidian"),
   copy: document.getElementById("copy"),
   keyForm: document.getElementById("key-form"),
@@ -40,10 +33,6 @@ const els = {
   exaKey: document.getElementById("exa-key"),
   keysToggle: document.getElementById("keys-toggle"),
   habits: document.getElementById("habits")
-=======
-  keyForm: document.getElementById("key-form"),
-  apiKey: document.getElementById("api-key")
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 };
 
 /** Resolved tab titles, keyed by tab id, so a `ref` can name its source. */
@@ -51,6 +40,9 @@ const titles = new Map();
 
 let running = false;
 let currentSkill = null;
+
+/** Read once at boot so the Obsidian click handler never awaits before copying. */
+let obsidianSettings = { vault: undefined, folder: undefined };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -147,11 +139,8 @@ function setRunning(next) {
   running = next;
   els.goal.disabled = next;
   els.run.disabled = next;
-<<<<<<< HEAD
-=======
   els.includeHistory.disabled = next;
   els.readLimit.disabled = next;
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   els.run.textContent = next ? "running…" : "run";
 }
 
@@ -174,16 +163,11 @@ function hideSkill() {
 
 els.download.addEventListener("click", () => {
   if (!currentSkill) return;
-<<<<<<< HEAD
-
-=======
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   const blob = new Blob([currentSkill], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = skillFilename(currentSkill);
-<<<<<<< HEAD
 
   // The anchor has to be in the document for click() to start a download in
   // every Chrome build; a detached one silently does nothing on some of them.
@@ -196,14 +180,52 @@ els.download.addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 });
 
+/**
+ * Copy, with a fallback.
+ *
+ * navigator.clipboard.writeText needs the document focused, and a side panel can
+ * lose focus at exactly the wrong moment. The execCommand path is deprecated but
+ * has neither requirement, and works in an extension page that declares
+ * clipboardWrite. Returns the reason on failure rather than swallowing it.
+ *
+ * @returns {Promise<{ok: boolean, via?: string, error?: string}>}
+ */
+async function copyText(text) {
+  let first = "";
+  try {
+    await navigator.clipboard.writeText(text);
+    return { ok: true, via: "clipboard api" };
+  } catch (err) {
+    first = err?.message ?? String(err);
+  }
+
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "0";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const copied = document.execCommand("copy");
+    area.remove();
+    if (copied) return { ok: true, via: "execCommand" };
+    return { ok: false, error: first + " / execCommand returned false" };
+  } catch (err) {
+    return { ok: false, error: first + " / " + (err?.message ?? String(err)) };
+  }
+}
+
 els.copy?.addEventListener("click", async () => {
   if (!currentSkill) return;
-  try {
-    await navigator.clipboard.writeText(currentSkill);
+  const result = await copyText(currentSkill);
+  if (result.ok) {
     setStatus("copied to clipboard", "ok");
-  } catch (err) {
+  } else {
     setStatus("could not copy", "bad");
-    renderEvent(panelEvent("error", "Copy failed.", err.message));
+    renderEvent(panelEvent("error", "Copy failed.", result.error));
   }
 });
 
@@ -215,30 +237,39 @@ els.copy?.addEventListener("click", async () => {
 els.obsidian?.addEventListener("click", async () => {
   if (!currentSkill) return;
 
-  const stored = await chrome.storage.local.get(["OBSIDIAN_VAULT", "OBSIDIAN_FOLDER"]);
   const target = obsidianTarget({
-    vault: stored.OBSIDIAN_VAULT,
-    folder: stored.OBSIDIAN_FOLDER,
+    vault: obsidianSettings.vault,
+    folder: obsidianSettings.folder,
     filename: skillFilename(currentSkill),
     markdown: currentSkill
   });
 
   if (target.mode === "clipboard") {
-    try {
-      await navigator.clipboard.writeText(currentSkill);
+    // Copied before anything is awaited: clipboard writes need the transient
+    // activation from this click, and an await can spend it.
+    const copied = await copyText(currentSkill);
+    if (!copied.ok) {
       renderEvent(
         panelEvent(
-          "note",
-          "Skill copied — paste it into the note Obsidian just opened.",
-          "Too long to pass through the obsidian:// URL without being truncated."
+          "error",
+          "Could not copy the skill, so Obsidian was not opened.",
+          copied.error + " — use download instead."
         )
       );
-    } catch {
-      renderEvent(panelEvent("error", "Could not copy the skill for Obsidian."));
       return;
     }
+    renderEvent(
+      panelEvent(
+        "note",
+        "Skill copied — press Ctrl+V in the note Obsidian just opened.",
+        currentSkill.length +
+          " characters, too long for an obsidian:// URL. Copied via " +
+          copied.via +
+          "."
+      )
+    );
   } else {
-    renderEvent(panelEvent("note", "Sent to Obsidian.", target.path));
+    renderEvent(panelEvent("note", "Sent to Obsidian.", target.path + " · " + target.url.length + " char URL"));
   }
 
   try {
@@ -259,17 +290,6 @@ els.habits?.addEventListener("click", () => {
 // The agent host sends TRACE as { event }, so the envelope is unwrapped here.
 on(MSG.TRACE, (payload) => {
   try {
-=======
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-});
-
-// ---- incoming ---------------------------------------------------------
-
-// The agent host sends TRACE as { event }, so the envelope is unwrapped here.
-on(MSG.TRACE, (payload) => {
-  try {
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
     const ev = payload.event;
     renderEvent(ev);
     if (ev.kind === "done" || ev.kind === "error") setRunning(false);
@@ -297,25 +317,10 @@ els.form.addEventListener("submit", async (e) => {
   clearTrace();
   hideSkill();
   setRunning(true);
-<<<<<<< HEAD
-  renderEvent(
-    panelEvent(
-      "plan",
-      "Goal: " + goal,
-      includeHistory
-        ? "Reading your open tabs, and recent history if they fall short."
-        : "Reading the tabs you already have open."
-    )
-  );
-
-  try {
-    const reply = await request(MSG.RUN, { goal, includeHistory });
-=======
   renderEvent(panelEvent("plan", "Goal: " + goal, els.includeHistory.checked ? "Reading open tabs, with recent history available if useful." : "Reading the tabs you already have open."));
 
   try {
     const reply = await request(MSG.RUN, { goal, includeHistory: els.includeHistory.checked, maxReads: Number(els.readLimit.value) });
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 
     if (!reply?.ok) {
       renderEvent(panelEvent("error", "The worker rejected the run.", reply?.error ?? "no reason given"));
@@ -360,13 +365,8 @@ els.form.addEventListener("submit", async (e) => {
 });
 
 /**
-<<<<<<< HEAD
- * Replay the scripted run. The status line says so plainly — the trace must
- * never imply work that did not happen.
-=======
  * Replay the scripted run until the agent loop is connected. The status line
  * says so plainly — the trace should never imply work that did not happen.
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
  */
 async function replayScriptedRun() {
   setStatus("scripted run", "pending");
@@ -383,69 +383,6 @@ async function replayScriptedRun() {
   const markdown = await fetch(assetUrl("extension/panel/demo-skill.md")).then((r) => r.text());
   showSkill(markdown);
 }
-
-<<<<<<< HEAD
-// ---- credentials ------------------------------------------------------
-
-/**
- * A key already saved is never read back into the field — the placeholder says
- * it is there, and leaving the field blank keeps it.
- */
-function showKeyForm({ hasKey = false, hasExa = false } = {}) {
-  els.apiKey.placeholder = hasKey ? "saved — leave blank to keep" : "sk-or-...";
-  if (els.exaKey) els.exaKey.placeholder = hasExa ? "saved — leave blank to keep" : "exa key";
-  els.keyForm.hidden = false;
-  if (!hasKey) els.apiKey.focus();
-}
-
-els.keysToggle?.addEventListener("click", async () => {
-  if (!els.keyForm.hidden) {
-    els.keyForm.hidden = true;
-    return;
-  }
-  const stored = await chrome.storage.local.get(["OPENROUTER_API_KEY", "EXA_API_KEY"]);
-  showKeyForm({ hasKey: Boolean(stored.OPENROUTER_API_KEY), hasExa: Boolean(stored.EXA_API_KEY) });
-});
-
-els.keyForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const openrouter = els.apiKey.value.trim();
-  const exa = els.exaKey?.value.trim() ?? "";
-  if (!openrouter && !exa) {
-    els.keyForm.hidden = true;
-    return;
-  }
-
-  // Stored in this browser's extension storage, never in the repo. A blank field
-  // leaves whatever is already saved alone.
-  const update = {};
-  if (openrouter) update.OPENROUTER_API_KEY = openrouter;
-  if (exa) update.EXA_API_KEY = exa;
-  await chrome.storage.local.set(update);
-
-  els.apiKey.value = "";
-  if (els.exaKey) els.exaKey.value = "";
-  els.keyForm.hidden = true;
-
-  const saved = Object.keys(update)
-    .map((k) => (k === "EXA_API_KEY" ? "Exa" : "OpenRouter"))
-    .join(" and ");
-  renderEvent(
-    panelEvent(
-      "note",
-      saved + " key saved.",
-      exa ? "Web search is on for gaps your tabs do not cover." : "Run again for a real pass over your tabs."
-    )
-  );
-  setStatus("keys saved", "ok");
-});
-
-// ---- boot -------------------------------------------------------------
-
-=======
-// ---- boot -------------------------------------------------------------
-
 // ---- credentials ------------------------------------------------------
 
 function showKeyForm() {
@@ -466,7 +403,16 @@ els.keyForm.addEventListener("submit", async (e) => {
   setStatus("key saved", "ok");
 });
 
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
+/** Vault and folder for the Obsidian export, if the user set them. */
+async function loadObsidianSettings() {
+  try {
+    const stored = await chrome.storage.local.get(["OBSIDIAN_VAULT", "OBSIDIAN_FOLDER"]);
+    obsidianSettings = { vault: stored.OBSIDIAN_VAULT, folder: stored.OBSIDIAN_FOLDER };
+  } catch {
+    // No vault set is fine: Obsidian falls back to the last one opened.
+  }
+}
+
 /** Preload stub tab titles so a scripted run's refs resolve to real titles. */
 async function preloadStubTitles() {
   try {
@@ -488,13 +434,8 @@ async function handshake() {
   try {
     const reply = await request(MSG.PING, {});
     if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
-<<<<<<< HEAD
-    setStatus(reply.tabCount + " tabs · " + reply.windowCount + " windows", "ok");
-    if (!reply.hasKey) showKeyForm({ hasKey: false, hasExa: reply.hasExa });
-=======
     setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions`, "ok");
     if (!reply.hasKey) showKeyForm();
->>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   } catch (err) {
     setStatus("worker unreachable", "bad");
     renderEvent(panelEvent("error", "Could not reach the service worker.", err.message));
@@ -502,5 +443,6 @@ async function handshake() {
 }
 
 setRunning(false);
+await loadObsidianSettings();
 await preloadStubTitles();
 await handshake();

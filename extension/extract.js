@@ -40,8 +40,8 @@ export async function readTab(tabId, opts = {}) {
   // to us, so a window full of chrome:// tabs costs nothing.
   try {
     const tab = await chrome.tabs.get(tabId);
-    if (tab?.discarded || tab?.frozen || tab?.status === 'loading') {
-      return { id: tabId, text: null, textStatus: 'blocked', error: 'Page is unloaded or loading; open it manually before reading.' };
+    if (tab?.discarded || tab?.frozen || (tab?.pendingUrl && tab.pendingUrl !== tab.url)) {
+      return { id: tabId, text: null, textStatus: 'blocked', error: 'Page is unloaded or navigating; open it manually before reading.' };
     }
     const url = tab?.url || tab?.pendingUrl || "";
     if (NEVER_INJECTABLE.test(url) || WEBSTORE.test(url)) {
@@ -53,10 +53,11 @@ export async function readTab(tabId, opts = {}) {
 
   try {
     // Readability first: it defines the global the extractor below depends on.
-    await chrome.scripting.executeScript({ target: { tabId }, files: [READABILITY_FILE] });
+    await chrome.scripting.executeScript({ target: { tabId }, injectImmediately: true, files: [READABILITY_FILE] });
 
     const frames = await chrome.scripting.executeScript({
       target: { tabId },
+      injectImmediately: true,
       func: extractInPage,
       args: [maxChars]
     });

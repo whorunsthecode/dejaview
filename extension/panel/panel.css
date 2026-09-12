@@ -40,6 +40,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body { height: 100%; margin: 0; padding: 0; }
 
@@ -209,6 +210,8 @@ button:focus-visible {
 /* ---- keys and connectors --------------------------------------------- */
 
 #key-form {
+  max-height: 65vh;
+  overflow-y: auto;
   margin-top: 11px;
   padding: 4px 11px 11px;
   border: 1px solid var(--line);
@@ -276,6 +279,8 @@ button:focus-visible {
 }
 
 .key-actions { display: flex; justify-content: flex-end; padding-top: 10px; }
+.key-save-bar { position: sticky; top: 0; z-index: 1; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+.credential-status { display: block; font-weight: 600; color: var(--ink); }
 
 /* ---- rediscovery ----------------------------------------------------- */
 

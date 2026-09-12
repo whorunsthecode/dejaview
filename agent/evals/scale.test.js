@@ -4,9 +4,19 @@ import { runTriage } from '../triage.js';
 import { runAgent } from '../host.js';
 import { shortlistTabs } from '../shortlist.js';
 import { readLimit } from '../../shared/limits.js';
+import { MetadataIndex, indexTerms } from '../../shared/metadata-index.js';
 
 const json = value => ({ role: 'assistant', content: JSON.stringify(value) });
 const tabs = Array.from({ length: 500 }, (_, id) => ({ id, title: id === 250 ? 'Shader banding mobile precision fix' : `Reference document ${id}`, url: `https://docs.example.org/pages/${id}`, groupTitle: null, firstVisit: null, windowId: 1, lastAccessed: 0, text: 'Use high precision for the shader calculation.', textStatus: 'ok' }));
+
+test('short technical terms such as 3D survive both shortlist paths', () => {
+  assert.ok(indexTerms('Build an AI interface in 3D').includes('3d'));
+  assert.ok(!indexTerms('in the UI').includes('in'));
+  const inventory = tabs.map(t => ({ ...t, title: t.id === 250 ? '3D spatial scenes' : 'Build visual agent interfaces' }));
+  const index = new MetadataIndex(); inventory.forEach(t => index.upsert(t));
+  assert.ok(index.query('Build a visual agent interface in 3D').some(t => t.id === 250));
+  assert.ok(shortlistTabs(inventory, 'Build a visual agent interface in 3D').some(t => t.id === 250));
+});
 
 test('500-tab triage bounds model input and finds an exact problem title in the middle', async () => {
   const trace = [];

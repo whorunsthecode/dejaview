@@ -23,7 +23,7 @@ export class TextCache {
     this.ready = store.all().then(rows => { for (const row of rows) if (row.at > now() - 86400000) this.rows.set(row.key, row); else void store.delete(row.key).catch(() => {}); }).catch(e => { this.warning = e.message; });
   }
   async revision(id) {
-    const frames = await withTimeout(this.api.scripting.executeScript({ target: { tabId: id }, func: pageRevision }));
+    const frames = await withTimeout(this.api.scripting.executeScript({ target: { tabId: id }, injectImmediately: true, func: pageRevision }));
     const stamp = frames?.[0]?.result;
     if (typeof stamp !== 'string') throw new Error('No document revision returned');
     return stamp;
@@ -37,7 +37,7 @@ export class TextCache {
     const fail = (textStatus, error) => ({ id, text: null, textStatus, error });
     try {
       const tab = await this.api.tabs.get(id);
-      if (tab.discarded || tab.frozen || tab.status === 'loading') return fail('blocked', 'Page is unloaded or loading; open it manually before reading.');
+      if (tab.discarded || tab.frozen || (tab.pendingUrl && tab.pendingUrl !== tab.url)) return fail('blocked', 'Page is unloaded or navigating; open it manually before reading.');
       if (!/^https?:\/\//i.test(tab.url ?? '')) return fail('blocked', 'Page cannot be scripted.');
       const before = await this.revision(id);
       const hit = [...this.rows.values()].find(row => row.url === tab.url && row.stamp === before && row.at > this.now() - 86400000);

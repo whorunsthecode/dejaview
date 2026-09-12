@@ -76,9 +76,10 @@ export function browserTabSource() {
     list: () => index.list(),
     diagnostics: () => [index.warning && `Local tab index persistence: ${index.warning}`, cache.warning && `Local text cache persistence: ${cache.warning}`].filter(Boolean),
     candidates: (goal, mode) => index.candidates(goal, mode),
-    peek: id => peekTab(id),
+    peek: id => peekTab(id, globalThis.chrome, { throwOnError: true }),
     read: async (id) => {
       const result = await cache.get(id);
+      if (result.textStatus === 'error') throw new Error(`Tab ${id} extraction: ${result.error || 'Browser returned no readable result'}`);
       return { id: result.id, text: result.text, textStatus: result.textStatus, url: result.url, cached: result.cached === true };
     }
   };

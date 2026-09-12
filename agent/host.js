@@ -34,12 +34,20 @@ async function loadSystemPrompt() {
 export function createOpenRouterModel({ env = {}, fetchImpl = globalThis.fetch, timeoutMs = 30000 } = {}) {
   return async ({ messages, tools, responseFormat, maxOutputTokens = 4096 }) => {
     if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is required for a live run');
-    const data = await requestJSON('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST', headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: env.OPENROUTER_MODEL || DEFAULT_MODEL, messages,
-        ...(tools ? { tools, tool_choice: 'auto' } : {}),
-        ...(responseFormat ? { response_format: responseFormat, max_tokens: maxOutputTokens } : {}) })
-    }, { fetchImpl, timeoutMs });
+    let data;
+    try {
+      data = await requestJSON('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST', headers: { Authorization: `Bearer ${env.OPENROUTER_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: env.OPENROUTER_MODEL || DEFAULT_MODEL, messages,
+          ...(tools ? { tools, tool_choice: 'auto' } : {}),
+          ...(responseFormat ? { response_format: responseFormat, max_tokens: maxOutputTokens } : {}) })
+      }, { fetchImpl, timeoutMs });
+    } catch (error) {
+      if (error.status === 401) {
+        throw new Error('OpenRouter rejected the API key (HTTP 401). Open keys, paste your current OpenRouter API key, then Save changes. In the CLI, update OPENROUTER_API_KEY.');
+      }
+      throw error;
+    }
     return data.choices?.[0]?.message;
   };
 }
@@ -182,11 +190,15 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         journal('tool_call', { name: 'peek_tab', args, id });
         let result;
         try { result = await tools.handlers.peek_tab(args); }
-        catch (error) { result = { id: choice.id, description: '', heading: '', paragraph: '', textStatus: 'error' }; }
+        catch (error) { result = { id: choice.id, description: '', heading: '', paragraph: '', textStatus: 'error', error: { message: error.message ?? String(error) } }; }
         journal('tool_result', { name: 'peek_tab', result, id });
-        emit('result', `Preview ${choice.id}: ${result.textStatus}`, '', choice.id);
+        emit('result', `Preview ${choice.id}: ${result.textStatus}`, result.error?.message ?? '', choice.id);
         return result;
       });
+      if (previews.every(p => p.textStatus === 'error' || p.textStatus === 'blocked')) {
+        emit('error', 'No preview could be read. Open a selected source tab and retry; browser extraction must work before continuing.');
+        return finish('error', 'Stopped: all previews were unavailable; no further model calls or skill output.');
+      }
       const selectedIds = new Set(triage.open.map(t => t.id));
       peekSelection = await selectPeeks({ goal, tabs: tabs.filter(t => selectedIds.has(t.id)), previews, cap: initialReadCap, model: peekModel, mode });
       iterations += peekSelection.modelCalls;

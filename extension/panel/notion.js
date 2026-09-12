@@ -10,6 +10,8 @@
  * project, and the token only reaches pages they explicitly shared.
  */
 
+import { isCredentialText } from "./credentials.js";
+
 const API = "https://api.notion.com/v1";
 
 /** Pinned: Notion's API is versioned by header and changes behaviour without it. */
@@ -220,7 +222,11 @@ async function notionFetch(path, { token, method = "POST", body }) {
  * @param {{token: string, parentId: string, title: string, markdown: string}} opts
  */
 export async function createNotionPage({ token, parentId, title, markdown }) {
+  token = typeof token === "string" ? token.trim() : "";
   if (!token) return { ok: false, error: "No Notion integration token set." };
+  if (!isCredentialText(token)) {
+    return { ok: false, error: "Notion token contains unsupported characters. Paste the original integration token under keys and save again." };
+  }
 
   const parent = parsePageId(parentId);
   if (!parent) return { ok: false, error: "Could not read a page id out of the Notion parent setting." };

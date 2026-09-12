@@ -1,6 +1,6 @@
 import { historyUrl } from './history.js';
-const stop = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'how', 'can']);
-export const indexTerms = text => [...new Set((String(text).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(t => t.length > 2 && !stop.has(t)))];
+const stop = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'how', 'can', 'into', 'to', 'of', 'in', 'on', 'at', 'as', 'by', 'or', 'an', 'is', 'be', 'it', 'we', 'do', 'us']);
+export const indexTerms = text => [...new Set((String(text).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(t => t.length >= 2 && !stop.has(t)))];
 
 /** Incremental inverted index: tokenize only inserts/updates, never the corpus per query. */
 export class MetadataIndex {

@@ -14,6 +14,17 @@ const event = () => {
   return { addListener: fn => handlers.add(fn), removeListener: fn => handlers.delete(fn), fire: (...args) => handlers.forEach(fn => fn(...args)) };
 };
 
+test('preview distinguishes metadata, injection and validation failures without hanging', async () => {
+  const never = () => new Promise(() => {});
+  const options = { timeoutMs: 5, throwOnError: true };
+  await assert.rejects(peekTab(1, { tabs: { get: never } }, options), /tab metadata: Browser operation timed out/);
+  const api = { tabs: { get: async () => ({ url: 'https://example.org' }) }, scripting: { executeScript: never } };
+  await assert.rejects(peekTab(1, api, options), /preview injection: Browser operation timed out/);
+  api.scripting.executeScript = async () => [{ result: {} }];
+  await assert.rejects(peekTab(1, api, options), /preview validation: Invalid peek response/);
+  assert.equal((await peekTab(1, api)).textStatus, 'error');
+});
+
 test('peek selects metadata and a paragraph without cloning or mutating a page', () => {
   const dom = new JSDOM(`<meta property="og:description" content="${'description '.repeat(80)}"><h1>Mobile shader precision</h1><main><p>${'Use highp. '.repeat(100)}</p></main>`, { runScripts: 'outside-only' });
   const before = dom.window.document.documentElement.outerHTML;
@@ -26,8 +37,8 @@ test('peek selects metadata and a paragraph without cloning or mutating a page',
   dom.window.close();
 });
 
-test('discarded/frozen/loading tabs are never injected during peeks or cached reads', async () => {
-  for (const state of [{ discarded: true }, { frozen: true }, { status: 'loading' }]) {
+test('discarded/frozen/navigating tabs are never injected during peeks or cached reads', async () => {
+  for (const state of [{ discarded: true }, { frozen: true }, { pendingUrl: 'https://other.org/new' }]) {
     let injected = 0, reads = 0;
     const api = { tabs: { get: async () => ({ url: 'https://example.org', ...state }) }, scripting: { executeScript: async () => { injected++; } } };
     const cache = new TextCache({ api, store: new MemoryStore(), read: async () => { reads++; } });
@@ -35,6 +46,17 @@ test('discarded/frozen/loading tabs are never injected during peeks or cached re
     assert.equal((await cache.get(1)).textStatus, 'blocked');
     assert.equal(injected, 0); assert.equal(reads, 0);
   }
+});
+
+test('a committed page with slow resources is previewed and read without waiting for idle', async () => {
+  const calls = [];
+  const api = { tabs: { get: async () => ({ url: 'https://example.org', status: 'loading' }) }, scripting: {
+    executeScript: async opts => { calls.push(opts); assert.equal(opts.injectImmediately, true); return [{ result: opts.func === peekInPage ? { textStatus: 'ok', description: 'Loaded prose', heading: '', paragraph: '' } : 'stable-document' }]; }
+  } };
+  assert.equal((await peekTab(1, api)).textStatus, 'ok');
+  const cache = new TextCache({ api, store: new MemoryStore(), read: async id => ({ id, text: 'Loaded prose.', textStatus: 'ok' }) });
+  assert.equal((await cache.get(1)).textStatus, 'ok');
+  assert.equal(calls.length, 3);
 });
 
 test('IndexedDB persists URL/hash text, checks revisions, deduplicates in-flight reads and evicts', async () => {

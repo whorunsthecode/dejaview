@@ -6,6 +6,11 @@ import { runFakeLoop } from "./host.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Keys live in .env, which is gitignored. Absent file is fine until a tool needs one.
+try {
+  process.loadEnvFile(join(__dirname, "..", ".env"));
+} catch {}
+
 const goal = process.argv.slice(2).join(" ").trim();
 if (!goal) {
   console.error('Usage: node agent/run-local.js "your goal here"');

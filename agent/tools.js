@@ -1,8 +1,11 @@
 /**
- * Tool definitions the agent may call. All throw "not implemented".
+ * Tool definitions the agent may call. web_search is wired to Exa; the rest still
+ * throw "not implemented".
  * The host wires these up either against the extension (via chrome messaging)
  * or against stubs.json (via run-local.js).
  */
+
+import { search as exaSearch } from "./exa.js";
 
 export const toolSchemas = [
   {
@@ -79,8 +82,8 @@ export async function read_tab(/* id */) {
 export async function search_in_tab(/* id, query */) {
   throw new Error("not implemented");
 }
-export async function web_search(/* query */) {
-  throw new Error("not implemented");
+export async function web_search(query) {
+  return exaSearch(query);
 }
 export async function write_skill(/* payload */) {
   throw new Error("not implemented");

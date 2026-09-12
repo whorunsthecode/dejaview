@@ -64,5 +64,159 @@
     "lastAccessed": 1757400000000,
     "text": null,
     "textStatus": "blocked"
+  },
+  {
+    "id": 487,
+    "url": "https://datatracker.ietf.org/doc/html/rfc8628#section-3.5",
+    "title": "RFC 8628 — Device Access Token Request",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1709337600000,
+    "lastAccessed": 1789084800000,
+    "text": "This fixture discusses device token polling and protocol error handling. It is a second view of the same RFC already open in another tab.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 488,
+    "url": "https://auth0.com/docs/get-started/authentication-and-authorization-flow/device-authorization-flow?utm_source=bookmark",
+    "title": "Device Authorization Flow | Auth0 documentation",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1757808000000,
+    "lastAccessed": 1789084800000,
+    "text": "This fixture repeats the device-flow documentation with a tracking parameter. Its procedural coverage overlaps the first Auth0 tab.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 489,
+    "url": "https://auth0.com/",
+    "title": "Auth0 — Secure AI and Application Identity",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1788048000000,
+    "lastAccessed": 1789084800000,
+    "text": "This fictional landing-page fixture promotes an identity platform. Product positioning and sales links dominate the page.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 490,
+    "url": "https://www.okta.com/customer-identity/",
+    "title": "Customer Identity: Seamless Device Authentication | Okta",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1788048000000,
+    "lastAccessed": 1789084800000,
+    "text": "This fictional landing-page fixture advertises customer identity. It presents benefits and invites the reader to request a demonstration.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 491,
+    "url": "https://www.descope.com/",
+    "title": "Descope — Authentication for Every App and Device",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1788048000000,
+    "lastAccessed": 1789084800000,
+    "text": "This fictional homepage fixture introduces authentication products. It lists capabilities but gives no polling implementation steps.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 492,
+    "url": "https://github.com/example-device-client/oauth/issues/217",
+    "title": "Device polling retries immediately after slow_down and connection timeout",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1788134400000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic issue fixture: a device client ignores slow_down and retries after a connection timeout. The discussion isolates polling interval state from transport failure handling.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 493,
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code",
+    "title": "Microsoft identity platform — OAuth 2.0 device authorization grant",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1788220800000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic documentation fixture: device authorization has separate device-code and token-polling phases. Errors during polling have different continuation and termination behavior.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 494,
+    "url": "https://github.com/example-device-client/oauth/issues/98",
+    "title": "Refresh token rotation race revokes device token family",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1756684800000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic issue fixture: concurrent refresh requests reuse a rotating token. The discussion concerns serialization of refreshes after device authorization, rather than initial polling.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 495,
+    "url": "https://legacy-sdk.example/docs/v1/device-flow-polling",
+    "title": "Legacy Identity SDK v1 — device polling timeout configuration",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1704412800000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic old API documentation fixture. These configuration names belong to a legacy SDK and need version verification before use.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 496,
+    "url": "https://www.rfc-editor.org/rfc/rfc6749.html",
+    "title": "RFC 6749 — OAuth 2.0 Authorization Framework",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1704499200000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic protocol fixture covering the base OAuth framework. It includes general grant and refresh-token concepts rather than device-flow-specific polling rules.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 497,
+    "url": "https://threejs.org/docs/#api/en/materials/ShaderMaterial",
+    "title": "ShaderMaterial — three.js docs",
+    "windowId": 2,
+    "groupTitle": "graphics",
+    "firstVisit": 1788307200000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic graphics fixture about writing shader programs for materials. It contains no device authorization or token polling procedure.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 498,
+    "url": "https://www.navapbc.com/toolkits/readable-ai-content",
+    "title": "How to make your content AI-readable",
+    "windowId": 2,
+    "groupTitle": "reading",
+    "firstVisit": 1741305600000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic content-design fixture about structured text and headings. It does not describe device authentication.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 499,
+    "url": "https://www.alltrails.com/explore",
+    "title": "Explore hiking trails near you",
+    "windowId": 2,
+    "groupTitle": "weekend",
+    "firstVisit": 1788393600000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic recreation fixture listing walks and outdoor routes. There is no authentication implementation content.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 500,
+    "url": "https://www.bbcgoodfood.com/recipes/collection/vegetarian-dinner-recipes",
+    "title": "Vegetarian dinner recipes",
+    "windowId": 2,
+    "groupTitle": "weekend",
+    "firstVisit": 1788480000000,
+    "lastAccessed": 1789084800000,
+    "text": "Synthetic cooking fixture collecting dinner ideas. It has no device-flow engineering coverage.",
+    "textStatus": "ok"
   }
 ]

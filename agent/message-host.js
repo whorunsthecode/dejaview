@@ -40,6 +40,9 @@ export function attachMessageHost({
     try {
       const result = await runner({
         ...runnerOptions, goal: payload.goal, tabSource, env,
+        onHighlight(payload) {
+          if (!disposed) send(MSG.HIGHLIGHT, payload);
+        },
         onTrace(event) {
           isTraceEvent(event);
           if (!disposed) send(MSG.TRACE, { event });

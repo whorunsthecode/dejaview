@@ -15,14 +15,17 @@ function scripted(responses) { let index = 0; return async () => responses[index
 async function run(model, options = {}) {
   const events = [];
   const result = await runAgent({ goal: 'test', tabSource: new StubTabSource(), env: {}, model,
-    onTrace: event => { isTraceEvent(event); events.push(event); }, ...options });
+    onTrace: event => { isTraceEvent(event); events.push(event); },
+    gapModel: async () => ({ role: 'assistant', content: JSON.stringify({ covered: 'Isolated K1 test.', gaps: [] }) }),
+    passageModel: async ({ messages }) => ({ role: 'assistant', content: JSON.stringify({ passages: [], empty: JSON.parse(messages.at(-1).content).tabs.map(tab => ({ tabId: tab.id, why: 'Isolated K1 test.' })) }) }),
+    triageModel: async ({ messages }) => ({ role: 'assistant', content: JSON.stringify({ open: [], skip: JSON.parse(messages.at(-1).content).tabs.map(tab => ({ id: tab.id, why: 'Deferred for isolated tool-loop test.' })), note: null }) }), ...options });
   const pairs = events.filter(event => ['tool', 'result'].includes(event.kind));
   assert.equal(pairs.length % 2, 0);
   for (let i = 0; i < pairs.length; i += 2) {
     assert.equal(pairs[i].kind, 'tool'); assert.equal(pairs[i + 1].kind, 'result');
     assert.equal(pairs[i].ref, pairs[i + 1].ref);
   }
-  return { result, events, outputs: result.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content)) };
+  return { result, events, outputs: result.messages.filter(m => m.role === 'tool' && m.tool_call_id !== 'triage-list').map(m => JSON.parse(m.content)) };
 }
 
 test('offline fixture completes via write_skill with blocked and thrown reads', async () => {
@@ -83,7 +86,7 @@ test('runtime schema checks nested sources and unexpected fields', () => {
 test('terminal tool only writes once, and subsequent batch tools never execute', async () => {
   let called = false;
   const { result, outputs } = await run(scripted([reply(call('write_skill', payload), call('write_skill', payload), call('read_tab', { id: 481 }))]),
-    { tabSource: { read: async () => { called = true; } } });
+    { tabSource: { list: async () => [], read: async () => { called = true; } } });
   assert.equal(called, false); assert.equal(result.status, 'complete');
   assert.deepEqual(outputs[0], { ok: true });
   assert.match(outputs[1].error.message, /only be called once/);
@@ -143,7 +146,7 @@ test('Exa is gated, clearly stubbed, and normalizes enabled responses', async ()
     calls++; assert.equal(JSON.parse(init.body).contents.highlights, true);
     return new Response(JSON.stringify({ results: [{ title: 't', url: 'https://example.com', highlights: ['q'], score: 1 }] }));
   } });
-  assert.deepEqual(await live.handlers.web_search({ query: 'x' }), [{ title: 't', url: 'https://example.com', highlights: ['q'] }]);
+  assert.deepEqual(await live.handlers.web_search({ query: 'x' }), [{ title: 't', url: 'https://example.com', highlights: ['q'], source: 'web', firstVisit: null }]);
   assert.equal(calls, 1);
 });
 

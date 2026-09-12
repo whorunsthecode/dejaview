@@ -6,7 +6,10 @@ to K1. The four message constants and shared data shapes are unchanged:
 - Input: `RUN { goal }`.
 - Live output: `TRACE { event }`, with every event validated.
 - Completed output: `SKILL { markdown }`, using an injected serializer.
-- `HIGHLIGHT` remains reserved for the passage-selection/highlighting work.
+- Verified output: `HIGHLIGHT { tabId, quotes: string[] }`. Each quote is an exact
+  span from that tab’s read snapshot. An empty array clears the tab’s selection.
+  The extension must route this payload to the corresponding page; DOM behavior
+  is not implemented or tested by the agent host.
 
 The composition entry point supplies a TabSource, runtime credentials, the agreed
 Markdown serializer, and optional send/on transport functions. The adapter prevents

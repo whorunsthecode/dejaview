@@ -130,13 +130,13 @@ export function createTools({ tabSource, env = {}, fetchImpl = globalThis.fetch,
     },
     async web_search({ query }) {
       if (env.ENABLE_EXA !== '1' || !env.EXA_API_KEY) return [{
-        title: '[STUB — no web search performed]', url: '',
+        title: '[STUB — no web search performed]', url: '', source: 'web', firstVisit: null, stub: true,
         highlights: ['External coverage is unavailable. Set ENABLE_EXA=1 and EXA_API_KEY to search.']
       }];
       const results = await exaSearch(query, { fetchImpl, apiKey: env.EXA_API_KEY, signal: AbortSignal.timeout(timeoutMs) });
       return results.map(({ title, url, highlights }) => {
         if (typeof title !== 'string' || typeof url !== 'string' || !highlights.every(x => typeof x === 'string')) throw new Error('Invalid Exa search result');
-        return { title, url, highlights };
+        return { title, url, highlights, source: 'web', firstVisit: null };
       });
     },
     async write_skill(payload) {

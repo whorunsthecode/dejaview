@@ -1,7 +1,24 @@
 /** Deterministic plumbing fixture, not triage or conversion logic. No network calls. */
 export function createOfflineModel() {
   let step = 0;
-  return async ({ messages }) => {
+  return async ({ messages, phase }) => {
+    if (phase === 'gaps') return { role: 'assistant', content: JSON.stringify({ covered: 'The offline tabs demonstrate OAuth procedures.', gaps: [{ missing: 'Mobile shader banding procedure.', query: 'mobile shader banding' }] }) };
+    if (phase === 'loose') return { role: 'assistant', content: JSON.stringify({ rhymes: [], none: 'No analogy evaluated by this deterministic fixture.' }) };
+    if (phase === 'passages') {
+      const tabs = JSON.parse(messages.at(-1).content).tabs;
+      return { role: 'assistant', content: JSON.stringify({ passages: tabs.map(tab => ({
+        tabId: tab.id, quote: tab.text.split('\n\n')[0], why: 'Exact source span for the offline plumbing fixture.'
+      })), empty: [] }) };
+    }
+    if (phase === 'triage') {
+      const tabs = JSON.parse(messages.at(-1).content).tabs;
+      const selected = new Set([481, 486]);
+      return { role: 'assistant', content: JSON.stringify({
+        open: tabs.filter(tab => selected.has(tab.id)).map(tab => ({ id: tab.id, why: 'Exercise this tab in the offline plumbing fixture.' })),
+        skip: tabs.filter(tab => !selected.has(tab.id)).map(tab => ({ id: tab.id, why: 'Outside the deterministic plumbing fixture selection.' })),
+        note: 'Offline fixture selection; no model judgment is being tested.'
+      }) };
+    }
     const results = messages.filter(message => message.role === 'tool').map(message => JSON.parse(message.content));
     const tabs = results.find(Array.isArray) ?? [];
     const readable = tabs.find(tab => tab.textStatus === 'ok');

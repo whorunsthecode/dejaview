@@ -2,8 +2,8 @@
  * Tab enumeration and dating.
  *
  * A tab has no open date of its own — Chrome does not record when you opened it.
- * The closest honest proxy is the first time the URL was ever visited, which
- * history does record. That is what dates a tab here.
+ * The closest available proxy is the earliest retained visit to the URL, which
+ * may be later than its actual first-ever visit. That is what dates a tab here.
  *
  * When history has nothing (incognito, cleared history, a URL that never goes to
  * history at all) firstVisit is null. It is never guessed, and never backfilled

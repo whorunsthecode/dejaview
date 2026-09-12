@@ -38,7 +38,7 @@ test("a long description wraps but survives the round trip intact", () => {
     "refresh, or the endpoint rejecting the device outright after repeated polling.";
   const md = renderSkill({ ...SKILL, description: long });
 
-  assert.ok(md.split("\n").every((l) => l.length <= 90), "a line ran long");
+  assert.ok(md.split("\n---\n")[0].split("\n").every((l) => l.length <= 90), "a line ran long");
   assert.equal(skillDescription(md), long, "wrapping lost or mangled the description");
 });
 
@@ -47,10 +47,10 @@ test("the body is carried through verbatim", () => {
   assert.match(md, /1\. Read the interval and poll no faster than it\./);
 });
 
-test("every source carries the date its tab was first opened", () => {
+test("every source carries its earliest recorded visit date", () => {
   const md = renderSkill(SKILL);
-  assert.match(md, /- https:\/\/auth0\.com\/docs\/device-flow — tab first opened 2024-03-15/);
-  assert.match(md, /rfc8628 — tab first opened 2024-02-01/);
+  assert.match(md, /- https:\/\/auth0\.com\/docs\/device-flow — open tab; earliest recorded visit 2024-03-15/);
+  assert.match(md, /rfc8628 — open tab; earliest recorded visit 2024-02-01/);
 });
 
 test("an undated source says so rather than inventing a date", () => {

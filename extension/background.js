@@ -81,7 +81,7 @@ on(MSG.RUN, async (payload) => {
 
   // Fire and forget: progress reaches the panel as TRACE, the finished file as
   // SKILL. This reply only reports that the loop got under way.
-  startRun({ goal, env });
+  startRun({ goal, env, includeHistory: payload?.includeHistory === true });
   return { ok: true, goal, ...counts, violations: violations.length, started: true };
 });
 

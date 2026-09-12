@@ -281,3 +281,7 @@ main {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.history-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; }
+.history-option input { width: auto; margin: 0; }
+.history-help { font-size: 11px; line-height: 1.5; opacity: .7; margin: 5px 0 0; }

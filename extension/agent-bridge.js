@@ -14,6 +14,7 @@
  */
 import { MSG, send as sharedSend } from "../shared/messages.js";
 import { attachMessageHost } from "../agent/message-host.js";
+import { browserHistorySource } from './history.js';
 import { listTabs } from "./tabs.js";
 import { readTab } from "./extract.js";
 import { highlightTab } from "./highlight.js";
@@ -92,7 +93,7 @@ function sourceDate(firstVisit) {
 /**
  * Serialize a validated write_skill payload into the SKILL.md the agent's
  * convert-skill prompt describes: frontmatter, the procedure, then every source
- * with the date its tab was first opened.
+ * with its source provenance and earliest retained visit date.
  *
  * @param {{name: string, description: string, body: string, sources: {url: string, firstVisit: number|null, source?: string}[]}} skill
  * @returns {string}
@@ -116,8 +117,10 @@ export function renderSkill(skill) {
       const provenance =
         source?.source === "web"
           ? "found by search, no open tab"
+          : source?.source === "history"
+            ? "from browsing history; " + (date ? "earliest recorded visit " + date : "visit date unknown")
           : date
-            ? "tab first opened " + date
+            ? "open tab; earliest recorded visit " + date
             : "tab date unknown";
       lines.push("- " + (source?.url ?? "(no url)") + " — " + provenance);
     }
@@ -153,14 +156,16 @@ function sendFromAgent(type, payload) {
   sharedSend(type, payload);
 }
 
-function hostFor(env) {
-  const key = JSON.stringify(env);
+function hostFor(env, includeHistory = false) {
+  const key = JSON.stringify({ env, includeHistory });
   if (host && hostKey === key) return host;
 
   host?.dispose?.();
   hostKey = key;
   host = attachMessageHost({
     tabSource: browserTabSource(),
+    includeHistory,
+    historySource: includeHistory ? browserHistorySource() : null,
     env,
     renderSkill,
     send: sendFromAgent,
@@ -175,10 +180,10 @@ function hostFor(env) {
  * Start a run. Returns as soon as it is under way — progress reaches the panel
  * as TRACE events and the finished file as SKILL, never through this promise.
  *
- * @param {{goal: string, env: Record<string, string>}} opts
+ * @param {{goal: string, env: Record<string, string>, includeHistory?: boolean}} opts
  */
-export function startRun({ goal, env }) {
-  const agent = hostFor(env);
+export function startRun({ goal, env, includeHistory = false }) {
+  const agent = hostFor(env, includeHistory);
   running = true;
   return agent
     .run({ goal })

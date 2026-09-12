@@ -18,6 +18,7 @@ const els = {
   form: document.getElementById("run-form"),
   goal: document.getElementById("goal"),
   run: document.getElementById("run"),
+  includeHistory: document.getElementById("include-history"),
   result: document.getElementById("result"),
   skillName: document.getElementById("skill-name"),
   skillDesc: document.getElementById("skill-desc"),
@@ -128,6 +129,7 @@ function setRunning(next) {
   running = next;
   els.goal.disabled = next;
   els.run.disabled = next;
+  els.includeHistory.disabled = next;
   els.run.textContent = next ? "running…" : "run";
 }
 
@@ -189,10 +191,10 @@ els.form.addEventListener("submit", async (e) => {
   clearTrace();
   hideSkill();
   setRunning(true);
-  renderEvent(panelEvent("plan", "Goal: " + goal, "Reading the tabs you already have open."));
+  renderEvent(panelEvent("plan", "Goal: " + goal, els.includeHistory.checked ? "Reading open tabs, with recent history available if useful." : "Reading the tabs you already have open."));
 
   try {
-    const reply = await request(MSG.RUN, { goal });
+    const reply = await request(MSG.RUN, { goal, includeHistory: els.includeHistory.checked });
 
     if (!reply?.ok) {
       renderEvent(panelEvent("error", "The worker rejected the run.", reply?.error ?? "no reason given"));

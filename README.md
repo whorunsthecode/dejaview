@@ -1,7 +1,7 @@
 # dejavu
 
-Chrome extension (MV3). An agent that reads your open tabs and converts what you've
-already read into a `SKILL.md` your coding agent can execute later.
+Chrome extension (MV3). An agent that reads open tabs and, optionally, recent
+browsing history to produce a `SKILL.md` your coding agent can execute later.
 
 **Thesis.** Open tabs are the only reading list nobody curates. Every open tab is an
 implicit bookmark with a date. Some are from 2024 and relevant again now. No chatbox can
@@ -12,7 +12,9 @@ see this. dejavu converts them into an artifact that outlives the session.
 1. `git clone` this repo.
 2. Chrome → `chrome://extensions` → toggle Developer mode.
 3. Click "Load unpacked" → select this folder.
-4. Open the side panel from the extensions toolbar. You should see stubbed trace events.
+4. Open the side panel from the extensions toolbar and add your OpenRouter key.
+5. Optionally check **Include recent history** before running. Selected history pages
+   reopen inactive for extraction and highlights. See [history behavior and tests](agent/HISTORY.md).
 
 ## Run the agent locally (no browser)
 
@@ -20,8 +22,9 @@ see this. dejavu converts them into an artifact that outlives the session.
 node agent/run-local.js "fix the device flow refresh"
 ```
 
-Reads `shared/stubs.json` and prints a fake trace to stdout. Proves the plumbing; replace
-`runFakeLoop` in `agent/host.js` with a real model loop once tools are wired.
+Reads `shared/stubs.json`. Uses OpenRouter when configured; pass `--offline` for
+the deterministic plumbing fixture. Browser history requires the injected browser
+source; the local CLI does not read personal history.
 
 ## Ownership
 
@@ -32,15 +35,18 @@ Reads `shared/stubs.json` and prints a fake trace to stdout. Proves the plumbing
   skill conversion, loose-match mode, gap-fill search, deterministic fallback.
 - `shared/` — neither side edits without saying so. Data contract lives here.
 
-Nothing in `extension/` imports from `agent/` or vice versa. The two halves communicate
-through the four message types in `shared/messages.js` only.
+The composition bridge in `extension/agent-bridge.js` injects browser sources into
+the agent host. Agent production modules do not import extension code or Chrome APIs.
 
 ## Privacy
 
-The `history` permission is used exclusively to date tabs that are already open
-(`chrome.history.getVisits({url})` for URLs in `chrome.tabs.query`). Browsing history is
-never enumerated or mined as a corpus.
+By default, history is used only to date already-open tabs. With **Include recent
+history** enabled, a bounded recent-history lookup produces up to 50 metadata
+candidates for model selection. Only selected pages are reopened and read, sharing
+the eight-read limit with open tabs. There is no background history collection.
+Dates mean earliest retained visits, not guaranteed first-ever visits.
 
 ## Env
 
-Copy `.env.example` to `.env` and fill in keys. Nothing reads them yet.
+The Node CLI loads keys from the ignored `.env`. The browser host reads extension
+storage populated by the panel; it does not load `.env`. Never package that file.

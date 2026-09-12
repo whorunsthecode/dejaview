@@ -88,7 +88,7 @@ permissions are not granted.” The shipped golden fixture was not overwritten.
 
 ## Manual browser acceptance
 
-1. Reload dejavu at chrome://extensions and open the panel.
+1. Reload deja-view at chrome://extensions and open the panel.
 2. Choose an article you previously visited within the retained window, then close
    its tab. Keep a small set of open tabs that covers only part of your goal.
 3. Enable Include recent history and run a goal whose missing procedure the closed

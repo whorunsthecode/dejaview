@@ -1,4 +1,4 @@
-# dejavu
+# deja-view
 
 Chrome extension (MV3). An agent that reads your open tabs and, optionally, recent
 browsing history, and converts what you have already read into a `SKILL.md` your
@@ -6,7 +6,7 @@ coding agent can execute later.
 
 **Thesis.** Open tabs are the only reading list nobody curates. Every open tab is an
 implicit bookmark with a date. Some are from 2024 and relevant again now. No chatbox can
-see this. dejavu converts them into an artifact that outlives the session.
+see this. deja-view converts them into an artifact that outlives the session.
 
 ## Load unpacked
 
@@ -16,7 +16,7 @@ declares that floor, so an older Chrome refuses to install rather than misbehavi
 1. `git clone` this repo.
 2. Chrome → `chrome://extensions` → toggle **Developer mode**.
 3. **Load unpacked** → select the repo root, the folder holding `manifest.json`.
-4. Click the dejavu icon to open the side panel.
+4. Click the deja-view icon to open the side panel.
 5. Press **keys** and paste an [OpenRouter](https://openrouter.ai/keys) key, then press
    **run** with something you are actually working on.
 
@@ -44,7 +44,7 @@ visited recently but no longer have open. See [agent/HISTORY.md](agent/HISTORY.m
 
 ## Where the skill goes
 
-The result panel offers five targets:
+The result panel offers five targets, one icon each:
 
 - **obsidian** — opens the note in your vault over the `obsidian://` URI scheme. No
   server, no account, no OAuth. Windows truncates a protocol URL near 2048 characters,

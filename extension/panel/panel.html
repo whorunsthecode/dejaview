@@ -2,17 +2,69 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>dejavu</title>
+    <title>deja-view</title>
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
+    <!--
+      Icons, defined once and referenced with <use>. Inline rather than image
+      files because MV3 forbids remote code, and a <symbol> can carry the brand
+      colours, which a CSS mask or an icon font cannot.
+    -->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-obsidian" viewBox="0 0 24 24">
+        <path fill="#6d28d9" d="M12.6 2 5.2 7.4 3.6 15.2 9.5 22l7.3-.6L20.4 11.6z" />
+        <path fill="#a78bfa" d="M12.6 2l7.8 9.6-3.6 9.8-5.4-7.8z" />
+        <path fill="#8b5cf6" d="M12.6 2l-1.2 11.6-7.8 1.6L5.2 7.4z" />
+        <path fill="#5b21b6" d="M11.4 13.6l5.4 7.8-7.3.6-5.9-6.8z" />
+      </symbol>
+
+      <symbol id="i-notion" viewBox="0 0 24 24">
+        <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="3.4" fill="#fff" stroke="#111" stroke-width="1.6" />
+        <path fill="#111" d="M8 17V7h2.1l4.4 7.1V7h2.1v10h-2.1l-4.4-7.1V17z" />
+      </symbol>
+
+      <symbol id="i-gdocs" viewBox="0 0 24 24">
+        <path fill="#4285f4" d="M6 2h7.5L19 7.5V21a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+        <path fill="#a1c2fa" d="M13.5 2 19 7.5h-5.5z" />
+        <g fill="#fff">
+          <rect x="8" y="11" width="8" height="1.4" rx=".7" />
+          <rect x="8" y="14" width="8" height="1.4" rx=".7" />
+          <rect x="8" y="17" width="5" height="1.4" rx=".7" />
+        </g>
+      </symbol>
+
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <rect x="8.5" y="8.5" width="11" height="11" rx="2.2" />
+          <path d="M15.5 5.5a2 2 0 0 0-2-2h-7a3 3 0 0 0-3 3v7a2 2 0 0 0 2 2" stroke-linecap="round" />
+        </g>
+      </symbol>
+
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3.5v11" />
+          <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+          <path d="M4.5 18.5v1a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-1" />
+        </g>
+      </symbol>
+
+      <symbol id="i-key" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="12" r="4" />
+          <path d="M12 12h8M17.5 12v3M20 12v2.5" />
+        </g>
+      </symbol>
+    </svg>
+
     <header>
       <div class="title-row">
-        <h1>dejavu</h1>
-        <button id="keys-toggle" type="button" title="API keys">keys</button>
-        <button id="habits" type="button" title="Visualise your tabs and habits">habits</button>
+        <h1>deja<em>-</em>view</h1>
+        <button id="habits" class="chip" type="button" title="Visualise your tabs and habits">habits</button>
+        <button id="keys-toggle" class="chip" type="button" title="API keys and connectors">keys</button>
         <p id="status" class="pending">starting&hellip;</p>
       </div>
+
       <form id="run-form">
         <input
           id="goal"
@@ -24,38 +76,46 @@
         <button id="run" type="submit">run</button>
       </form>
 
-      <label class="history-option" for="include-history">
-        <input id="include-history" type="checkbox" />
-        Include recent history
-      </label>
-      <p class="history-help">Checks recent visits and reopens selected pages for reading and highlights.</p>
-
-      <label class="history-option" for="read-limit">Page budget
-        <select id="read-limit">
-          <option value="8" selected>8 — selective</option>
-          <option value="24">24 — expanded</option>
-          <option value="48">48 — thorough</option>
-        </select>
-      </label>
-      <p class="history-help">Maximum pages to read, shared across tabs and history. Larger runs take longer and use more API credit.</p>
+      <div class="options">
+        <label class="option" for="include-history">
+          <input id="include-history" type="checkbox" />
+          Include recent history
+        </label>
+        <label class="option" for="read-limit">
+          Page budget
+          <select id="read-limit">
+            <option value="8" selected>8 &mdash; selective</option>
+            <option value="24">24 &mdash; expanded</option>
+            <option value="48">48 &mdash; thorough</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">
+        History checks recent visits and reopens selected pages. The budget caps how
+        many pages a run may read, across tabs and history alike.
+      </p>
 
       <form id="key-form" hidden>
-        <label for="api-key">
-          OpenRouter key &mdash; required to run the agent. Stored in this browser only.
-        </label>
-        <input
-          id="api-key"
-          type="password"
-          placeholder="sk-or-..."
-          autocomplete="off"
-          spellcheck="false"
-        />
+        <section class="key-group">
+          <h2 class="key-group-head">
+            <svg class="icon" aria-hidden="true"><use href="#i-key" /></svg>
+            Agent
+          </h2>
+          <label for="api-key">
+            OpenRouter key &mdash; required to run the agent. Stored in this browser only.
+          </label>
+          <input
+            id="api-key"
+            type="password"
+            placeholder="sk-or-..."
+            autocomplete="off"
+            spellcheck="false"
+          />
 
-        <label for="exa-key">
-          Exa key &mdash; optional. Lets the agent search the web when your tabs
-          do not cover the goal.
-        </label>
-        <div class="key-row">
+          <label for="exa-key">
+            Exa key &mdash; optional. Lets the agent search the web when your tabs
+            do not cover the goal.
+          </label>
           <input
             id="exa-key"
             type="password"
@@ -63,30 +123,45 @@
             autocomplete="off"
             spellcheck="false"
           />
+        </section>
+
+        <section class="key-group">
+          <h2 class="key-group-head">
+            <svg class="icon" aria-hidden="true"><use href="#i-notion" /></svg>
+            Notion
+          </h2>
+          <label for="notion-token">
+            Integration token &mdash; create an internal integration at
+            notion.so/my-integrations, then share a page with it.
+          </label>
+          <input id="notion-token" type="password" placeholder="ntn_..." autocomplete="off" spellcheck="false" />
+
+          <label for="notion-parent">Parent page &mdash; paste the page URL.</label>
+          <input id="notion-parent" type="text" placeholder="https://notion.so/Skills-1a2b3c..." autocomplete="off" spellcheck="false" />
+        </section>
+
+        <section class="key-group">
+          <h2 class="key-group-head">
+            <svg class="icon" aria-hidden="true"><use href="#i-gdocs" /></svg>
+            Google Docs
+          </h2>
+          <label for="google-client">
+            OAuth client id &mdash; add the redirect URI below to that client in
+            Google Cloud.
+          </label>
+          <input id="google-client" type="text" placeholder="....apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
+          <p id="redirect-hint" class="hint mono"></p>
+        </section>
+
+        <div class="key-actions">
           <button id="save-key" type="submit">save</button>
         </div>
-
-        <label for="notion-token">
-          Notion token &mdash; optional. Create an internal integration at
-          notion.so/my-integrations, then share a page with it.
-        </label>
-        <input id="notion-token" type="password" placeholder="ntn_..." autocomplete="off" spellcheck="false" />
-
-        <label for="notion-parent">Notion parent page &mdash; paste the page URL.</label>
-        <input id="notion-parent" type="text" placeholder="https://notion.so/Skills-1a2b3c..." autocomplete="off" spellcheck="false" />
-
-        <label for="google-client">
-          Google OAuth client id &mdash; optional, for Docs. Add this extension&rsquo;s
-          redirect URL to the client in Google Cloud.
-        </label>
-        <input id="google-client" type="text" placeholder="....apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
-        <p id="redirect-hint" class="history-help"></p>
       </form>
     </header>
 
     <main>
       <p id="empty">
-        dejavu reads the tabs you already have open, and turns what you have
+        deja-view reads the tabs you already have open, and turns what you have
         already read into a skill your coding agent can run later.
       </p>
       <ol id="trace"></ol>
@@ -99,11 +174,21 @@
           <span id="skill-desc"></span>
         </div>
         <div class="result-actions">
-          <button id="obsidian" type="button" title="Send to Obsidian">obsidian</button>
-          <button id="notion" type="button" title="Create a Notion page">notion</button>
-          <button id="gdocs" type="button" title="Create a Google Doc">docs</button>
-          <button id="copy" type="button" title="Copy markdown">copy</button>
-          <button id="download" type="button">download</button>
+          <button id="obsidian" class="icon-btn" type="button" title="Send to Obsidian" aria-label="Send to Obsidian">
+            <svg class="icon" aria-hidden="true"><use href="#i-obsidian" /></svg>
+          </button>
+          <button id="notion" class="icon-btn" type="button" title="Create a Notion page" aria-label="Create a Notion page">
+            <svg class="icon" aria-hidden="true"><use href="#i-notion" /></svg>
+          </button>
+          <button id="gdocs" class="icon-btn" type="button" title="Create a Google Doc" aria-label="Create a Google Doc">
+            <svg class="icon" aria-hidden="true"><use href="#i-gdocs" /></svg>
+          </button>
+          <button id="copy" class="icon-btn" type="button" title="Copy the markdown" aria-label="Copy the markdown">
+            <svg class="icon" aria-hidden="true"><use href="#i-copy" /></svg>
+          </button>
+          <button id="download" class="icon-btn" type="button" title="Download as .md" aria-label="Download as .md">
+            <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg>
+          </button>
         </div>
       </div>
       <pre id="skill-body"></pre>

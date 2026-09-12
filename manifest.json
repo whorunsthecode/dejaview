@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "dejavu",
+  "name": "deja-view",
   "version": "0.0.1",
   "description": "Reads your open tabs and converts what you've already read into a SKILL.md your coding agent can execute later.",
   "minimum_chrome_version": "121",
@@ -25,6 +25,6 @@
     "default_path": "extension/panel/panel.html"
   },
   "action": {
-    "default_title": "dejavu"
+    "default_title": "deja-view"
   }
 }

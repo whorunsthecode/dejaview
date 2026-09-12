@@ -1,11 +1,13 @@
 :root {
   --bg: #fafaf7;
   --surface: #ffffff;
+  --sunken: #f3f2ec;
   --line: #e6e4dd;
   --ink: #14140f;
   --ink-soft: #5c5a52;
   --ink-faint: #8d8a80;
   --accent: #14140f;
+  --ring: rgba(20, 20, 15, 0.18);
 
   --plan: #4a6cf7;
   --tool: #b58900;
@@ -13,17 +15,21 @@
   --note: #8d8a80;
   --done: #14140f;
   --error: #d33;
+
+  --radius: 7px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #16161a;
     --surface: #1e1e23;
+    --sunken: #131317;
     --line: #2e2e36;
     --ink: #ecebe6;
     --ink-soft: #a8a59c;
     --ink-faint: #76736b;
     --accent: #ecebe6;
+    --ring: rgba(236, 235, 230, 0.22);
 
     --plan: #7e96ff;
     --tool: #d4a017;
@@ -45,36 +51,57 @@ body {
   background: var(--bg);
 }
 
+/* The sprite is a definition, not a picture: it must occupy no space. */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 /* ---- header ---------------------------------------------------------- */
 
 header {
   flex: 0 0 auto;
-  padding: 12px 14px 11px;
+  padding: 12px 14px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
 .title-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 9px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 h1 {
-  margin: 0;
+  margin: 0 4px 0 0;
   font-size: 15px;
+  font-weight: 600;
   letter-spacing: 0.2px;
+}
+h1 em {
+  font-style: normal;
+  color: var(--ink-faint);
 }
 
 #status {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: 10px;
   font-variant: small-caps;
   letter-spacing: 0.4px;
   color: var(--ink-faint);
   text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #status.pending { color: var(--tool); }
 #status.ok      { color: var(--result); }
@@ -85,61 +112,161 @@ h1 {
 #goal {
   flex: 1;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 7px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius);
   font: inherit;
   color: var(--ink);
   background: var(--bg);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 #goal:focus {
   outline: none;
   border-color: var(--ink-soft);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 #goal:disabled { opacity: 0.55; }
+
+/* ---- buttons --------------------------------------------------------- */
 
 button {
   padding: 7px 13px;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius);
   font: inherit;
   color: var(--bg);
   background: var(--accent);
   cursor: pointer;
+  transition: opacity 120ms ease, border-color 120ms ease, color 120ms ease,
+    background 120ms ease, transform 120ms ease;
 }
-button:disabled { opacity: 0.5; cursor: default; }
+button:hover { opacity: 0.88; }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.5; cursor: default; transform: none; }
 
-/* ---- key prompt ------------------------------------------------------ */
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Header chips: secondary by weight, so the run button stays the only accent. */
+.chip {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  font-variant: small-caps;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+  background: transparent;
+}
+.chip:hover {
+  opacity: 1;
+  color: var(--ink);
+  border-color: var(--ink-soft);
+  background: var(--bg);
+}
+
+/* ---- run options ----------------------------------------------------- */
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 11px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.option input { width: auto; margin: 0; accent-color: var(--plan); }
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+#read-limit {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+}
+#read-limit:focus { outline: none; border-color: var(--ink-soft); }
+#read-limit:disabled { opacity: 0.55; }
+
+/* ---- keys and connectors --------------------------------------------- */
 
 #key-form {
-  margin-top: 9px;
-  padding: 9px 10px;
+  margin-top: 11px;
+  padding: 4px 11px 11px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
+}
+
+.key-group { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.key-group:last-of-type { border-bottom: 0; }
+
+.key-group-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant: small-caps;
+  letter-spacing: 0.5px;
+  color: var(--ink);
 }
 
 #key-form label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 5px;
   font-size: 11px;
   line-height: 1.45;
   color: var(--ink-soft);
 }
 
-.key-row { display: flex; gap: 6px; }
-
-#api-key {
-  flex: 1;
+#key-form input {
+  width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  margin-bottom: 9px;
+  padding: 6px 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
   color: var(--ink);
   background: var(--surface);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-#api-key:focus { outline: none; border-color: var(--ink-soft); }
+#key-form input:last-child { margin-bottom: 0; }
+#key-form input:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+#redirect-hint:empty { display: none; }
+#redirect-hint {
+  margin-top: 2px;
+  font-size: 10.5px;
+  word-break: break-all;
+  color: var(--ink-faint);
+}
+
+.key-actions { display: flex; justify-content: flex-end; padding-top: 10px; }
 
 /* ---- trace ----------------------------------------------------------- */
 
@@ -166,11 +293,12 @@ main {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 2px 8px;
-  padding: 7px 9px;
+  padding: 7px 10px;
   margin: 5px 0;
   background: var(--surface);
+  border: 1px solid var(--line);
   border-left: 2px solid var(--line);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   animation: arrive 220ms ease-out;
 }
 
@@ -181,6 +309,7 @@ main {
 
 @media (prefers-reduced-motion: reduce) {
   #trace li { animation: none; }
+  * { transition: none !important; }
 }
 
 #trace li .kind {
@@ -209,7 +338,7 @@ main {
   justify-self: start;
   max-width: 100%;
   margin-top: 3px;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 11px;
@@ -224,7 +353,7 @@ main {
 #trace li.tool   { border-left-color: var(--tool); }
 #trace li.result { border-left-color: var(--result); }
 #trace li.note   { border-left-color: var(--note); }
-#trace li.done   { border-left-color: var(--done); background: var(--bg); }
+#trace li.done   { border-left-color: var(--done); background: var(--sunken); }
 #trace li.error  { border-left-color: var(--error); }
 
 #trace li.tool .label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
@@ -268,8 +397,6 @@ main {
   white-space: nowrap;
 }
 
-#download { flex: 0 0 auto; }
-
 #skill-body {
   margin: 0;
   padding: 10px 12px 14px;
@@ -282,86 +409,55 @@ main {
   word-break: break-word;
 }
 
-.history-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; }
-.history-option input { width: auto; margin: 0; }
-.history-help { font-size: 11px; line-height: 1.5; opacity: .7; margin: 5px 0 0; }
-
-/* ---- header chips ---------------------------------------------------- */
-
-#keys-toggle,
-#habits {
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 10px;
-  font-variant: small-caps;
-  letter-spacing: 0.4px;
-  color: var(--ink-soft);
-  background: transparent;
-}
-#keys-toggle { margin-left: 2px; }
-#habits { margin-right: auto; }
-#keys-toggle:hover,
-#habits:hover { color: var(--ink); border-color: var(--ink-soft); }
-
-/* ---- key form -------------------------------------------------------- */
-
-#key-form {
-  margin-top: 9px;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
-}
-#key-form label {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--ink-soft);
-}
-#key-form label + input { margin-bottom: 9px; }
-.key-row { display: flex; gap: 6px; }
-.key-row #exa-key { margin-bottom: 0; }
-
-#api-key,
-#exa-key {
-  width: 100%;
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font: inherit;
-  color: var(--ink);
-  background: var(--surface);
-}
-#api-key:focus,
-#exa-key:focus { outline: none; border-color: var(--ink-soft); }
-
 /* ---- export targets -------------------------------------------------- */
 
-.result-actions { display: flex; gap: 6px; flex: 0 0 auto; }
-
-#obsidian,
-#copy {
-  border-color: var(--line);
-  color: var(--ink-soft);
-  background: transparent;
+.result-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
 }
-#obsidian:hover,
-#copy:hover { color: var(--ink); border-color: var(--ink-soft); }
 
-/* The page-budget select, styled to match the goal input it sits under. */
-#read-limit {
-  margin-left: 6px;
-  padding: 3px 6px;
+/*
+ * Icon-only, because five labelled buttons do not fit a side panel. Each keeps
+ * an aria-label and a title, so the name is one hover or one screen reader away.
+ */
+.icon-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 5px;
-  font: inherit;
-  font-size: 12px;
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  background: var(--bg);
+}
+.icon-btn:hover {
+  opacity: 1;
   color: var(--ink);
+  border-color: var(--ink-soft);
   background: var(--surface);
 }
-#read-limit:focus { outline: none; border-color: var(--ink-soft); }
-#read-limit:disabled { opacity: 0.55; }
+.icon-btn .icon { width: 15px; height: 15px; }
+
+/* A sending button keeps its size and its icon: only the spinner is added, so
+   the row never reflows mid-export. */
+.icon-btn.busy { cursor: progress; }
+.icon-btn.busy .icon { opacity: 0.25; }
+.icon-btn.busy::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--line);
+  border-top-color: var(--ink-soft);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn.busy::after { animation: none; }
+}

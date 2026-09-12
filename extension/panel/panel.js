@@ -140,6 +140,8 @@ function clearTrace() {
 
 function setStatus(text, state) {
   els.status.textContent = text;
+  // The line is one row and truncates; the title keeps the whole of it readable.
+  els.status.title = text;
   els.status.className = state ?? "";
 }
 
@@ -244,7 +246,10 @@ els.copy?.addEventListener("click", async () => {
  */
 els.obsidian?.addEventListener("click", async () => {
   if (!currentSkill) return;
+  await withBusy(els.obsidian, sendToObsidian);
+});
 
+async function sendToObsidian() {
   const target = obsidianTarget({
     vault: obsidianSettings.vault,
     folder: obsidianSettings.folder,
@@ -287,18 +292,31 @@ els.obsidian?.addEventListener("click", async () => {
       target.chunks === 1 ? "One call." : target.chunks + " calls, appended in order."
     )
   );
-});
+}
+
+/**
+ * Mark a button as working.
+ *
+ * A class rather than swapped text: these buttons hold an <svg>, so writing
+ * textContent would delete the icon and never bring it back.
+ */
+async function withBusy(button, fn) {
+  button.classList.add("busy");
+  button.disabled = true;
+  try {
+    return await fn();
+  } finally {
+    button.classList.remove("busy");
+    button.disabled = false;
+  }
+}
 
 /** Shared shape for the export buttons that call a remote API. */
 async function exportTo(button, label, run) {
   if (!currentSkill) return;
 
-  const original = button.textContent;
-  button.disabled = true;
-  button.textContent = "sending…";
-
   try {
-    const result = await run();
+    const result = await withBusy(button, run);
     if (result.ok) {
       renderEvent(panelEvent("done", "Created in " + label + ".", result.url ?? ""));
       setStatus("sent to " + label.toLowerCase(), "ok");
@@ -309,9 +327,6 @@ async function exportTo(button, label, run) {
     }
   } catch (err) {
     renderEvent(panelEvent("error", label + " export failed.", err?.message ?? String(err)));
-  } finally {
-    button.disabled = false;
-    button.textContent = original;
   }
 }
 

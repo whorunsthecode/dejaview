@@ -11,7 +11,7 @@ as information, not as staleness.
 
 HOW TO WORK
 1. Start with list_tabs. It is cheap and gives you titles, URLs and dates.
-2. Decide which tabs are worth opening from that alone. Reading a tab is expensive and you
+2. Use peek_tab for a cheap preview before committing to a full read. A preview is for selection, never quoted evidence. Reading a tab is expensive and you
    may open at most {readCap}. Say which you are opening and why before you open them.
 3. Read the ones you chose. If a tab turns out to be irrelevant, say so and move on. Being
    wrong out loud is better than padding.

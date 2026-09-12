@@ -25,6 +25,7 @@ if (!goal || (offlineFlag && liveFlag)) {
   try {
     const result = await runAgent({
       goal, tabSource: new StubTabSource(),
+      progressive: true, readConcurrency: 4,
       env: offline ? { ...process.env, ENABLE_EXA: '0' } : process.env,
       ...(offline ? { model: createOfflineModel() } : {}),
       onTrace(event) {

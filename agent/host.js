@@ -7,6 +7,9 @@ import { assessGaps } from './gaps.js';
 import { selectHistory } from './history.js';
 import { HISTORY_LIMIT, historyUrl, historyMetadata } from '../shared/history.js';
 import { DEFAULT_READ_LIMIT, PASSAGE_BATCH_SIZE, readLimit } from '../shared/limits.js';
+import { MAX_PEEKS } from '../shared/peek.js';
+import { mapConcurrent } from '../shared/concurrency.js';
+import { selectPeeks } from './peeks.js';
 
 export const DEFAULT_MODEL = 'google/gemini-2.5-flash';
 export const MAX_READS = DEFAULT_READ_LIMIT;
@@ -49,8 +52,9 @@ export function createOpenRouterModel({ env = {}, fetchImpl = globalThis.fetch, 
  * @returns {Promise<{status:string,skill:object|null,reads:number,iterations:number,messages:Array,triage:object|null}>}
  */
 async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env ?? {},
-  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {}, includeHistory = false, historySource = null, historyModel = model, maxReads = env.READ_LIMIT ?? DEFAULT_READ_LIMIT }) {
+  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {}, includeHistory = false, historySource = null, historyModel = model, maxReads = env.READ_LIMIT ?? DEFAULT_READ_LIMIT, progressive = false, peekModel = model, readConcurrency = 1 }) {
   maxReads = readLimit(maxReads);
+  if (!Number.isInteger(readConcurrency) || readConcurrency < 1 || readConcurrency > 4) throw new Error('Read concurrency must be from 1 to 4');
   if (typeof includeHistory !== 'boolean') throw new Error('includeHistory must be a boolean');
   if (!['tight', 'loose'].includes(mode)) throw new Error('mode must be tight or loose');
   if (typeof onTrace !== 'function') throw new Error('onTrace callback is required');
@@ -62,7 +66,8 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   const tools = createTools({ tabSource, env, fetchImpl, timeoutMs });
   const schemas = toolSchemas.map(tool => ({ type: 'function', function: tool }));
   const messages = [];
-  let reads = 0, iterations = 0, triage = null, searches = 0, coveragePending = true;
+  let reads = 0, peeks = 0, iterations = 0, triage = null, searches = 0, coveragePending = true;
+  let peekSelection = null;
   const attemptedQueries = [], coverageAssessments = [], allReadTabs = new Map();
   const invalidAttempts = new Map();
   const pendingTabs = new Map();
@@ -71,8 +76,9 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   const historyTabs = new Map();
   let historyAttempted = false;
   const finish = (status, label) => {
+    for (const warning of tabSource.diagnostics?.() ?? []) emit('note', warning);
     emit('done', label);
-    return { status, skill: tools.getSkill(), reads, iterations, messages, triage, passages, passageSelections, searches, coverageAssessments, historySelections, mode };
+    return { status, skill: tools.getSkill(), reads, peeks, peekSelection, iterations, messages, triage, passages, passageSelections, searches, coverageAssessments, historySelections, mode };
   };
   let prompt;
   try { prompt = (await loadSystemPrompt()).replace('{readCap}', String(maxReads)); }
@@ -133,12 +139,11 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
     }
     if (selection.note) emit('plan', selection.note);
     if (selection.truncated) emit('note', `History reads capped to ${selection.open.length} remaining slots.`);
-    for (const choice of selection.open) {
-      if (reads >= maxReads) break;
+    await mapConcurrent(selection.open.slice(0, maxReads - reads), readConcurrency, async choice => {
       const candidate = candidates.find(c => c.historyId === choice.historyId);
       emit('tool', `Reopening history page: ${candidate.title}`, choice.why);
       journal('tool_call', { name: 'history_read', args: { historyId: candidate.historyId, url: candidate.url } });
-      reads++;
+      const readNumber = ++reads;
       let result, tab, reopenedMetadata;
       try {
         tab = await historySource.open(candidate); isTab(tab);
@@ -149,25 +154,51 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         if (!tabs.some(t => t.id === tab.id)) tabs.push(metadata);
         historyTabs.set(tab.id, candidate);
         result = await tools.handlers.read_tab({ id: tab.id });
+        if (result.url && historyUrl(result.url) !== historyUrl(candidate.url)) throw new Error('History page navigated before extraction; source identity changed.');
         const snapshot = { ...metadata, ...result, firstVisit: candidate.firstVisit };
         pendingTabs.set(tab.id, snapshot); allReadTabs.set(tab.id, snapshot); coveragePending = true;
         messages.push({ role: 'user', content: `Reopened history source: ${JSON.stringify({ ...candidate, tabId: tab.id, source: 'history' })}` },
-          { role: 'assistant', content: null, tool_calls: [{ id: `history-read-${reads}`, type: 'function', function: { name: 'read_tab', arguments: JSON.stringify({ id: tab.id }) } }] },
-          { role: 'tool', tool_call_id: `history-read-${reads}`, content: JSON.stringify(result) });
+          { role: 'assistant', content: null, tool_calls: [{ id: `history-read-${readNumber}`, type: 'function', function: { name: 'read_tab', arguments: JSON.stringify({ id: tab.id }) } }] },
+          { role: 'tool', tool_call_id: `history-read-${readNumber}`, content: JSON.stringify(result) });
       } catch (error) { result = { error: { message: error.message } }; }
       journal('tool_result', { name: 'history_read', result, ...(reopenedMetadata ? { tab: reopenedMetadata } : {}) });
       emit('result', result.error ? `History page unavailable: ${result.error.message}` : `History page ${tab.id}: ${result.textStatus}, ${result.text?.length ?? 0} characters`);
-    }
+    });
     return pendingTabs.size > 0;
   }
 
   try {
     const initialReadCap = includeHistory && maxReads > 8 ? maxReads - Math.min(8, Math.floor(maxReads / 3)) : maxReads;
-    triage = await runTriage({ goal, tabs, mode, cap: initialReadCap, model: triageModel,
+    const previewing = progressive && typeof tabSource.peek === 'function';
+    const candidates = tabs.length > 50 && tabSource.candidates ? await tabSource.candidates(goal, mode) : undefined;
+    triage = await runTriage({ goal, tabs, mode, candidates, cap: previewing ? Math.min(MAX_PEEKS, Math.max(20, initialReadCap)) : initialReadCap, model: triageModel,
       onTrace: event => { isTraceEvent(event); onTrace(event); } });
     iterations = triage.modelCalls;
+    if (previewing && triage.open.length) {
+      emit('plan', `Previewing ${triage.open.length} candidates before committing full reads.`);
+      const previews = await mapConcurrent(triage.open, readConcurrency, async choice => {
+        const id = `peek-${++peeks}`, args = { id: choice.id };
+        emit('tool', 'Peeking at tab', choice.why, choice.id);
+        journal('tool_call', { name: 'peek_tab', args, id });
+        let result;
+        try { result = await tools.handlers.peek_tab(args); }
+        catch (error) { result = { id: choice.id, description: '', heading: '', paragraph: '', textStatus: 'error' }; }
+        journal('tool_result', { name: 'peek_tab', result, id });
+        emit('result', `Preview ${choice.id}: ${result.textStatus}`, '', choice.id);
+        return result;
+      });
+      const selectedIds = new Set(triage.open.map(t => t.id));
+      peekSelection = await selectPeeks({ goal, tabs: tabs.filter(t => selectedIds.has(t.id)), previews, cap: initialReadCap, model: peekModel, mode });
+      iterations += peekSelection.modelCalls;
+      const kept = new Set(peekSelection.open.map(c => c.id));
+      triage.skip.push(...triage.open.filter(c => !kept.has(c.id)).map(c => ({ id: c.id, why: 'Preview did not warrant a full read.' })));
+      triage.open = peekSelection.open;
+      triage.note = peekSelection.note ?? triage.note;
+      if (peekSelection.truncated) emit('note', `Preview selection exceeded the read budget; dropped ${peekSelection.truncated}.`);
+      emit('note', `Peeked ${previews.length}; selected ${triage.open.length} full reads.`);
+    }
   } catch (error) {
-    iterations = error.modelCalls ?? 1;
+    iterations += error.modelCalls ?? 1;
     triage = { rawOutputs: error.rawOutputs ?? [] };
     if (!error.traceEmitted) emit('error', error.message);
     return finish('error', 'Stopped: triage failed before any tab reads.');
@@ -291,7 +322,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
       messages.push({ role: 'user', content: 'Continue using the available tools, or finish with write_skill. State unsupported coverage honestly.' });
       continue;
     }
-    for (const call of calls) {
+    const executeCall = async call => {
       const name = call.function.name;
       let args, result, ref = null;
       try { args = JSON.parse(call.function.arguments); } catch { /* Report below as a tool result. */ }
@@ -314,6 +345,10 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
           if (reads >= maxReads) throw new Error(`Read budget exhausted: all ${maxReads} read_tab calls used. Use already-read tabs or finish.`);
           reads++; // Failed and blocked reads consume budget too.
         }
+        if (name === 'peek_tab') {
+          if (peeks >= MAX_PEEKS) throw new Error(`Peek budget exhausted: ${MAX_PEEKS} previews used.`);
+          peeks++;
+        }
         if (name === 'web_search') throw new Error(mode === 'loose' ? 'Gap-fill search is tight-mode only.' : 'Search is host-managed: coverage must name the gap before searching; at most two searches per run.');
         if (name === 'write_skill' && pendingTabs.size) throw new Error('Newly read tabs need passage verification first. Retry write_skill after verification.');
         if (name === 'write_skill') {
@@ -328,6 +363,8 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         }
         result = await tools.handlers[name](args);
         if (name === 'read_tab') {
+          const expectedUrl = tabs.find(tab => tab.id === args.id)?.url;
+          if (result.url && expectedUrl && historyUrl(result.url) !== historyUrl(expectedUrl)) throw new Error('Tab navigated since selection; refusing to quote a different page.');
           const snapshot = { ...tabs.find(tab => tab.id === args.id), ...result };
           pendingTabs.set(args.id, snapshot); allReadTabs.set(args.id, snapshot); coveragePending = true;
         }
@@ -336,10 +373,21 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
       let label = result.error ? `${name} failed: ${result.error.message}` : `${name} completed`;
       if (name === 'list_tabs' && !result.error) label = `Listed ${result.length} tabs (metadata only)`;
-      if (name === 'read_tab' && !result.error) label = `Tab ${ref}: ${result.textStatus}, ${result.text?.length ?? 0} characters`;
+      if (name === 'read_tab' && !result.error) label = `Tab ${ref}: ${result.textStatus}, ${result.text?.length ?? 0} characters${result.cached ? ' (verified cache hit)' : ''}`;
+      if (name === 'peek_tab' && !result.error) label = `Preview ${ref}: ${result.textStatus}`;
       if (name === 'search_in_tab' && !result.error) label = `Found ${result.excerpts.length} excerpts`;
       if (name === 'web_search' && !result.error) label = result[0]?.title?.startsWith('[STUB') ? 'Web search unavailable: marked stub returned' : `Found ${result.length} web results`;
       emit('result', label, '', ref);
+    };
+    // Only adjacent independent reads/previews overlap; writes and searches are barriers.
+    for (let i = 0; i < calls.length;) {
+      const name = calls[i].function.name;
+      if (name === 'read_tab' || name === 'peek_tab') {
+        let end = i + 1;
+        while (end < calls.length && calls[end].function.name === name) end++;
+        await mapConcurrent(calls.slice(i, end), readConcurrency, executeCall);
+        i = end;
+      } else await executeCall(calls[i++]);
     }
     if (tools.getSkill()) return finish('complete', 'write_skill completed.');
   }
@@ -400,7 +448,7 @@ export async function runAgent(options) {
     return response;
   };
   const result = await runLive({ ...options, env, mode: options.mode ?? env.AGENT_MODE ?? 'tight', journal,
-    model: wrap(baseModel), triageModel: wrap(options.triageModel ?? baseModel), passageModel: wrap(options.passageModel ?? baseModel), gapModel: wrap(options.gapModel ?? baseModel), historyModel: wrap(options.historyModel ?? baseModel),
+    model: wrap(baseModel), triageModel: wrap(options.triageModel ?? baseModel), peekModel: wrap(options.peekModel ?? baseModel), passageModel: wrap(options.passageModel ?? baseModel), gapModel: wrap(options.gapModel ?? baseModel), historyModel: wrap(options.historyModel ?? baseModel),
     onTrace(event) { journal('trace', event); return deliverTrace(event); },
     onHighlight(payload) { journal('highlight', payload); return deliverHighlight(payload); }
   });
@@ -410,6 +458,7 @@ export async function runAgent(options) {
     const metadata = events.flatMap(e => e.kind === 'tool_result' && !e.data.result?.error ? (e.data.name === 'list_tabs' && Array.isArray(e.data.result) ? e.data.result : e.data.name === 'history_read' && e.data.tab ? [e.data.tab] : []) : []);
     const ids = new Set(events.filter(e => e.kind === 'highlight').map(e => e.data.tabId));
     for (const e of events) if (e.kind === 'tool_result' && ['read_tab', 'history_read'].includes(e.data.name) && !e.data.result.error) ids.add(e.data.result.id);
+    for (const e of events) if (e.kind === 'tool_result' && e.data.name === 'peek_tab' && metadata.some(t => t.id === e.data.result?.id)) ids.add(e.data.result.id);
     const referencedTabs = [...ids].map(id => {
       const tab = metadata.find(tab => tab.id === id);
       if (!tab) throw new Error(`Cannot record missing tab metadata for ${id}`);

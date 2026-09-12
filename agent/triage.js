@@ -69,10 +69,11 @@ export function validateTriage(value, tabs) {
 }
 
 /** One logical triage, at most two model responses; no tab reads or other tools. */
-export async function runTriage({ goal, tabs, cap = 8, model, onTrace = () => {}, mode = 'tight' }) {
+export async function runTriage({ goal, tabs, cap = 8, model, onTrace = () => {}, mode = 'tight', candidates }) {
   if (!Number.isInteger(cap) || cap < 0 || cap > MAX_READ_LIMIT) throw new Error(`Triage cap must be between 0 and ${MAX_READ_LIMIT}`);
   const inventory = triageMetadata(tabs);
-  const metadata = inventory.length > TRIAGE_LIMIT ? shortlistTabs(inventory, goal, mode) : inventory;
+  const allowed = candidates && new Set(candidates.map(t => t.id));
+  const metadata = inventory.length > TRIAGE_LIMIT ? (allowed ? shortlistTabs(inventory.filter(t => allowed.has(t.id)), goal, mode) : shortlistTabs(inventory, goal, mode)) : inventory;
   const template = await loadTriagePrompt();
   // Large inventories need decisions about selected pages, not hundreds of
   // generated skip reasons. The host constructs the exact complement instead.

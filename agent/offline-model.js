@@ -2,6 +2,10 @@
 export function createOfflineModel() {
   let step = 0;
   return async ({ messages, phase }) => {
+    if (phase === 'peek-selection') {
+      const { tabs, cap } = JSON.parse(messages.at(-1).content);
+      return { role: 'assistant', content: JSON.stringify({ open: tabs.slice(0, cap).map(t => ({ id: t.id, why: 'Exercise readable previews in the offline fixture.' })), note: 'Offline preview fixture, not model judgment.' }) };
+    }
     if (phase === 'gaps') return { role: 'assistant', content: JSON.stringify({ covered: 'The offline tabs demonstrate OAuth procedures.', gaps: [{ missing: 'Mobile shader banding procedure.', query: 'mobile shader banding' }] }) };
     if (phase === 'loose') return { role: 'assistant', content: JSON.stringify({ rhymes: [], none: 'No analogy evaluated by this deterministic fixture.' }) };
     if (phase === 'passages') {

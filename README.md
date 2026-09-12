@@ -219,7 +219,8 @@ the agent host. Agent production modules do not import extension code or Chrome 
 | `sidePanel` | Display the run and downloadable skill. |
 
 `host_permissions` includes `<all_urls>` so selected articles can be extracted
-and highlighted across sites. There is no content script running continuously.
+and highlighted across sites. There is no content script declared in the manifest;
+a small revision observer stays in pages after an on-demand read to invalidate cache entries.
 No build step and no `npm install` are needed to load the extension.
 
 Messages in `shared/messages.js`: `PING` checks worker status; `RUN` starts a run;
@@ -242,8 +243,19 @@ before model triage, using goal keywords and group diversity. This heuristic can
 miss lexical mismatches; no ranking-quality guarantee is implied. Tight-mode
 passage extraction runs in batches of eight read pages; loose mode compares all
 selected pages together. CLI users can set `READ_LIMIT=24` or `READ_LIMIT=48`.
-Higher budgets increase latency and cost. Reads remain serial; there is no peek
-tool, persistent index, text cache, or discarded-tab recovery in this change.
+Higher budgets increase latency and cost. Browser and CLI runs preview up to 20
+metadata-selected candidates by default before choosing full reads. `peek_tab`
+returns at most 600 characters and never supplies quoted evidence. Previews and
+reads run with at most four operations in flight; full reads still share one budget.
+
+An IndexedDB-backed inverted index stores normal-profile open-tab metadata and
+updates on tab events. It reconciles once per worker wake, rather than enumerating
+and dating everything per run. History discovery remains opt-in and bounded; it
+is not continuously indexed. Selected source text is cached locally by URL and
+SHA-256 hash for up to 24 hours, at most 100 entries, with document-revision checks
+before reuse. Incognito metadata/text is not persisted. Discarded, frozen and
+loading pages are skipped without activating or reloading them. See
+[progressive discovery and validation](agent/PROGRESSIVE.md) for limits and clearing storage.
 
 ## Env
 

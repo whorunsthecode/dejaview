@@ -16,9 +16,20 @@ import { MSG, send as sharedSend } from "../shared/messages.js";
 import { attachMessageHost } from "../agent/message-host.js";
 import { browserHistorySource } from './history.js';
 import { readLimit } from '../shared/limits.js';
-import { listTabs } from "./tabs.js";
-import { readTab } from "./extract.js";
 import { highlightTab } from "./highlight.js";
+import { TabIndex } from './tab-index.js';
+import { TextCache } from './text-cache.js';
+import { peekTab } from './peek.js';
+
+let browserServices;
+export function getBrowserServices() {
+  return browserServices ??= { index: new TabIndex(), cache: new TextCache() };
+}
+export const indexedListTabs = () => getBrowserServices().index.list();
+export async function clearLocalCorpus() {
+  const { index, cache } = getBrowserServices();
+  await cache.clear(); await index.clear();
+}
 
 /** Settings the worker reads out of chrome.storage.local. */
 export const SETTING_KEYS = ["OPENROUTER_API_KEY", "EXA_API_KEY", "OPENROUTER_MODEL", "AGENT_MODE"];
@@ -45,12 +56,15 @@ export async function loadEnv() {
  * @returns {{list: () => Promise<any[]>, read: (id: number) => Promise<any>}}
  */
 export function browserTabSource() {
+  const { index, cache } = getBrowserServices();
   return {
-    list: () => listTabs(),
+    list: () => index.list(),
+    diagnostics: () => [index.warning && `Local tab index persistence: ${index.warning}`, cache.warning && `Local text cache persistence: ${cache.warning}`].filter(Boolean),
+    candidates: (goal, mode) => index.candidates(goal, mode),
+    peek: id => peekTab(id),
     read: async (id) => {
-      const result = await readTab(id);
-      // The agent validates exactly these three fields and rejects anything else.
-      return { id: result.id, text: result.text, textStatus: result.textStatus };
+      const result = await cache.get(id);
+      return { id: result.id, text: result.text, textStatus: result.textStatus, url: result.url, cached: result.cached === true };
     }
   };
 }
@@ -165,6 +179,8 @@ function hostFor(env, includeHistory = false, maxReads = readLimit()) {
   hostKey = key;
   host = attachMessageHost({
     tabSource: browserTabSource(),
+    progressive: true,
+    readConcurrency: 4,
     includeHistory,
     maxReads,
     historySource: includeHistory ? browserHistorySource() : null,

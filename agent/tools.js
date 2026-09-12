@@ -1,7 +1,14 @@
 import { isTab } from '../shared/types.js';
 import { search as exaSearch } from './exa.js';
+import { validatePeek } from '../shared/peek.js';
+import { historyUrl } from '../shared/history.js';
 
 export const toolSchemas = [
+  {
+    name: 'peek_tab',
+    description: 'Cheap preview: description, first heading and paragraph, at most 600 characters total. Preview is for selection only, never quoted evidence. Unloaded pages return blocked.',
+    parameters: { type: 'object', properties: { id: { type: 'number' } }, required: ['id'], additionalProperties: false }
+  },
   {
     name: "list_tabs",
     description: "Return metadata for all open tabs. Cheap. Call first. No text is included.",
@@ -91,13 +98,19 @@ export function validateArguments(name, args) {
 /** Each run owns its read cache and terminal state. The host owns the read budget. */
 export function createTools({ tabSource, env = {}, fetchImpl = globalThis.fetch, timeoutMs = 30000 }) {
   const readTabs = new Map();
+  const listedUrls = new Map();
   let skill = null;
   const handlers = {
+    async peek_tab({ id }) {
+      if (!tabSource.peek) throw new Error('This tab source does not support peek_tab');
+      return validatePeek(await tabSource.peek(id), id);
+    },
     async list_tabs() {
       const tabs = await tabSource.list();
       return tabs.map(tab => {
         // A message source may already omit text; validate the full shared shape first.
         isTab({ ...tab, text: Object.hasOwn(tab, 'text') ? tab.text : null });
+        listedUrls.set(tab.id, tab.url);
         const { text, ...metadata } = tab;
         return metadata;
       });
@@ -106,7 +119,8 @@ export function createTools({ tabSource, env = {}, fetchImpl = globalThis.fetch,
       const result = await tabSource.read(id);
       if (!result || result.id !== id || !['ok', 'empty', 'blocked', 'error'].includes(result.textStatus) ||
           (result.text !== null && typeof result.text !== 'string')) throw new Error('Invalid tab read response');
-      const value = { id, text: result.text, textStatus: result.textStatus };
+      if (result.url && listedUrls.has(id) && historyUrl(result.url) !== historyUrl(listedUrls.get(id))) throw new Error('Tab navigated since listing; source identity changed.');
+      const value = { id, text: result.text, textStatus: result.textStatus, ...(typeof result.cached === 'boolean' ? { cached: result.cached } : {}), ...(typeof result.url === 'string' ? { url: result.url } : {}) };
       readTabs.set(id, value);
       return value;
     },

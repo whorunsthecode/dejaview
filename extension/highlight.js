@@ -302,6 +302,13 @@ export function highlightInPage(quotes) {
     }
   }
 
+  // Our synchronous wrappers preserve source text. Ignore only these mutations;
+  // count pending page changes before disconnecting, and resume immediately.
+  const revision = globalThis.__dejavuDocumentRevisionV1;
+  if (revision?.observer) {
+    if (revision.observer.takeRecords().length) revision.revision++;
+    revision.observer.disconnect();
+  }
   try {
     clearExisting();
 
@@ -337,5 +344,7 @@ export function highlightInPage(quotes) {
     return { ok: true, total: results.length, matched, missed: results.length - matched, results };
   } catch (err) {
     return { ok: false, total: quotes.length, matched: 0, missed: quotes.length, error: err?.message ?? String(err) };
+  } finally {
+    revision?.observer?.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
   }
 }

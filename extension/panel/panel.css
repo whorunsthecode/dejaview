@@ -54,3 +54,14 @@ main { padding: 8px 12px 24px; }
 #trace li.done   { border-left-color: #111; background: #f4f2eb; }
 #trace li.error  { border-left-color: #d33; }
 #trace li .detail { color: #555; display: block; margin-top: 2px; }
+
+#status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-variant: small-caps;
+  letter-spacing: 0.3px;
+  color: #888;
+}
+#status.pending { color: #b58900; }
+#status.ok      { color: #3d8b40; }
+#status.bad     { color: #d33; }

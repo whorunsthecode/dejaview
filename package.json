@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "run:local": "node agent/run-local.js"
+    "run:local": "node agent/run-local.js",
+    "test": "node --test"
   }
 }

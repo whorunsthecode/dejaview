@@ -20,15 +20,30 @@ import { highlightTab } from "./highlight.js";
 import { TabIndex } from './tab-index.js';
 import { TextCache } from './text-cache.js';
 import { peekTab } from './peek.js';
+import { Rediscovery } from './rediscovery/engine.js';
 
 let browserServices;
 export function getBrowserServices() {
-  return browserServices ??= { index: new TabIndex(), cache: new TextCache() };
+  if (!browserServices) {
+    // Rediscovery shares the index and the cache rather than keeping its own:
+    // it must never cause a page read, only reuse what has already been read.
+    const index = new TabIndex();
+    const cache = new TextCache();
+    const rediscovery = new Rediscovery({
+      index, cache,
+      historySource: browserHistorySource(),
+      peek: id => peekTab(id)
+    });
+    browserServices = { index, cache, rediscovery };
+  }
+  return browserServices;
 }
 export const indexedListTabs = () => getBrowserServices().index.list();
 export async function clearLocalCorpus() {
-  const { index, cache } = getBrowserServices();
-  await cache.clear(); await index.clear();
+  const { index, cache, rediscovery } = getBrowserServices();
+  // Includes the nudge log, the suppression weights and the dwell table: all of
+  // it is local reading data, and "clear" that left some behind would be a lie.
+  await rediscovery.store.clear(); await cache.clear(); await index.clear();
 }
 
 /** Settings the worker reads out of chrome.storage.local. */

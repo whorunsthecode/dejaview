@@ -4,11 +4,15 @@
  *
  * Direction is a convention, not something the code enforces:
  *
- *   PING       panel  -> worker    liveness handshake; replies
- *   RUN        panel  -> worker    start a run; replies with an ack
- *   TRACE      worker -> panel     one trace event; no reply
- *   HIGHLIGHT  panel  -> worker    { tabId, quotes }; replies with match counts
- *   SKILL      worker -> panel     the finished SKILL.md; no reply
+ *   PING          panel  -> worker    liveness handshake; replies
+ *   RUN           panel  -> worker    start a run; replies with an ack
+ *   TRACE         worker -> panel     one trace event; no reply
+ *   HIGHLIGHT     panel  -> worker    { tabId, quotes }; replies with match counts
+ *   SKILL         worker -> panel     the finished SKILL.md; no reply
+ *   NUDGE         worker -> panel     { nudge }, one rediscovery; no reply
+ *   NUDGE_STATE   panel  -> worker    pending nudge, accept rate, settings; replies
+ *   NUDGE_ACTION  panel  -> worker    { id, action }; replies with the logged entry
+ *   SURPRISE      panel  -> worker    resurface one thing on request; replies
  */
 
 export const MSG = Object.freeze({
@@ -16,7 +20,11 @@ export const MSG = Object.freeze({
   RUN: "RUN",
   TRACE: "TRACE",
   HIGHLIGHT: "HIGHLIGHT",
-  SKILL: "SKILL"
+  SKILL: "SKILL",
+  NUDGE: "NUDGE",
+  NUDGE_STATE: "NUDGE_STATE",
+  NUDGE_ACTION: "NUDGE_ACTION",
+  SURPRISE: "SURPRISE"
 });
 
 function hasRuntime() {

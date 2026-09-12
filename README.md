@@ -89,6 +89,44 @@ chrome.storage.local.set({ OBSIDIAN_VAULT: "notes", OBSIDIAN_FOLDER: "skills" })
 
 With no vault set, Obsidian uses whichever one is open.
 
+## Rediscovery
+
+The other half of the thesis: things you read months ago are only useful if
+something reminds you of them at the moment they matter.
+
+When you land on a page that means you are working — a Google Doc, a GitHub
+repo, a Notion page, a Linear or Jira ticket — deja-view works out what it is
+about and looks through what you already have open for something older that
+relates. If it finds one, the toolbar icon gets a badge and the panel shows a
+single strip: the page, when you first read it, and one sentence on why it came
+up. Clicking it opens that page scrolled to the passage, using a
+[text fragment](https://developer.mozilla.org/docs/Web/URI/Fragment/Text_fragments)
+link, so nothing is injected into the page to get you there.
+
+Everything about it is built to stay quiet:
+
+- **At most one nudge an hour, three a day**, and never the same item twice
+  unless you ask for it.
+- **Undated items never qualify.** The claim is "you read this months ago", and
+  without a first-visit date that claim cannot be made. It is never guessed.
+- **One shared word is not a relationship.** Two are, or one that appears
+  nowhere else in your tabs.
+- **Dismissing teaches it.** Every nudge has *less like this* and a dismiss;
+  both push that theme down the ranking, the explicit one about three times
+  harder. Ignore a theme enough and it stops coming up.
+- **No modal, no sound, no focus change.** The strip appears in the flow and
+  waits. It cannot interrupt typing.
+- **No model and no network.** Matching is lexical and runs on your machine.
+
+Press **surprise me** for the manual version: one thing at random, weighted
+toward pages you spent real time on and have not been back to. It ignores the
+threshold and the rate limits, because you asked.
+
+Under **keys → Rediscovery** are the switch, the age floor (30 days by
+default), the confidence threshold, and the feature's own scoreboard — how many
+nudges it has made and what share of them you opened. If it is not earning its
+interruptions, that number is where you will see it.
+
 ## Habits
 
 Press **habits** in the panel header for a visualiser of what you are actually reading:
@@ -123,6 +161,10 @@ only through the message types in `shared/messages.js`.
 | `TRACE`     | worker → panel | `{ event }`, one validated step at a time     |
 | `SKILL`     | worker → panel | `{ markdown }`, the finished file             |
 | `HIGHLIGHT` | agent → worker | `{ tabId, quotes }`; applied in the page      |
+| `NUDGE`     | worker → panel | `{ nudge }`, one rediscovery, unprompted      |
+| `NUDGE_STATE` | panel → worker | the pending nudge, the accept rate, the settings |
+| `NUDGE_ACTION` | panel → worker | `{ id, action }` — opened, dismissed, less like this |
+| `SURPRISE`  | panel → worker | resurface one thing on request                |
 
 - `extension/tabs.js` — enumeration and first-visit dating.
 - `extension/extract.js` — on-demand Readability, truncated to ~6000 characters.
@@ -133,6 +175,11 @@ only through the message types in `shared/messages.js`.
 - `extension/text-cache.js` — extracted text, cached by hash with revision checks.
 - `extension/agent-bridge.js` — the seam: gives the agent its TabSource, credentials and
   the `SKILL.md` serializer.
+- `extension/rediscovery/triggers.js` — what counts as a page you are working on.
+- `extension/rediscovery/rank.js` — the bar an old page has to clear to interrupt you.
+- `extension/rediscovery/budget.js` — one an hour, three a day, and the accept rate.
+- `extension/rediscovery/dwell.js` — foreground time, and the weighted draw behind *surprise me*.
+- `extension/rediscovery/engine.js` — the watcher that puts those together.
 - `extension/panel/export.js` — the Obsidian URI plan, chunked so nothing is truncated.
 - `extension/panel/notion.js` — markdown parsed into Notion blocks.
 - `extension/panel/gdocs.js` — the Google OAuth flow and the Drive upload.
@@ -169,7 +216,26 @@ the page changes.
 By default, history is used only to date already-open tabs — `chrome.history.getVisits`
 for URLs already in `chrome.tabs.query`, never a sweep of everything you have read.
 
-Two features go further, and both are off until you turn them on:
+**Rediscovery is the one part that runs in the background, and it is on by
+default.** It has to be: a nudge that only arrives when you go looking for it is
+not a nudge. What that means exactly:
+
+- It sees the title and URL of pages you finish loading, the same metadata the
+  tab index already holds. It **reads a page's content only on a page that
+  triggers** — a doc, a repo, a Notion page, a ticket — and only when a nudge
+  could actually result, so being inside its rate limit means the page is never
+  looked at. What it reads is a 600-character peek, never a full extraction.
+- It keeps a **dwell table**: how long each page was in the foreground, capped
+  per session, for at most 500 pages. That is what weights *surprise me*.
+- It keeps a **log of every nudge** — the trigger, the item, and what you did —
+  which is what the accept rate in settings is computed from.
+- All of it is local, and none of it reaches a model or the network: the
+  matching is lexical and runs in the worker.
+- Turn it off under **keys → Rediscovery** and it stops. The switch is checked
+  before the extension looks at any page content, writes any dwell, or shows any
+  badge, so *off* means none of those three happen.
+
+Two further features are off until you turn them on:
 
 - **Include recent history** on a run scans up to 10,000 recent URLs locally and offers at
   most 200 metadata candidates for the model to choose from. Only selected pages are
@@ -177,7 +243,10 @@ Two features go further, and both are off until you turn them on:
 - **read history** on the habits page reads recent history to draw the charts. It is
   computed in the page, shown to you, and stored nowhere.
 
-Neither runs in the background, and neither happens unless you ask for it in that session.
+Neither of those two runs in the background, and neither happens unless you ask
+for it in that session. Rediscovery can use recent history as well, and that is
+a third switch of its own, off by default.
+
 Beyond that:
 
 - Page text is extracted only from tabs the agent opens, never in bulk. Text it did read
@@ -189,7 +258,8 @@ Beyond that:
 - Previews are cheap and deliberately weak evidence: `peek_tab` returns at most 600
   characters and can never supply a quote. At most four previews or reads are in flight at
   once. See [agent/PROGRESSIVE.md](agent/PROGRESSIVE.md) for the limits and how to clear
-  the stored data.
+  the stored data. `dejavu.clearLocalCorpus()` in the worker console clears the
+  text cache, the tab index, and rediscovery's log and dwell table together.
 - Your API keys and connector credentials live in `chrome.storage.local`, on this
   machine, and are sent only to the service each belongs to: OpenRouter, Exa, Notion
   or Google. A finished skill goes to a connector only when you press its button.

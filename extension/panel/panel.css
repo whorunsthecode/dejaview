@@ -252,6 +252,15 @@ button:focus-visible {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 #key-form input:last-child { margin-bottom: 0; }
+
+/* Checkboxes and the two small number fields are controls, not text fields:
+   the full-width rule above would stretch them across the form. */
+#key-form .option input {
+  width: auto;
+  margin-bottom: 0;
+  accent-color: var(--plan);
+}
+#key-form .option input[type="number"] { width: 4.5em; padding: 3px 6px; }
 #key-form input:focus {
   outline: none;
   border-color: var(--ink-soft);
@@ -267,6 +276,77 @@ button:focus-visible {
 }
 
 .key-actions { display: flex; justify-content: flex-end; padding-top: 10px; }
+
+/* ---- rediscovery ----------------------------------------------------- */
+
+/*
+ * A strip, never a dialog. It sits in the flow above the trace, takes no focus
+ * when it appears, and covers nothing — so it cannot interrupt typing.
+ */
+#nudge {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid var(--plan);
+  background: var(--surface);
+  animation: arrive 240ms ease-out;
+}
+/* display:flex would otherwise beat the hidden attribute. */
+#nudge[hidden] { display: none; }
+
+#nudge-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 6px 9px 10px;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+#nudge-open:hover { opacity: 1; background: var(--bg); }
+#nudge-open .icon { margin-top: 1px; color: var(--plan); }
+
+.nudge-text { min-width: 0; }
+
+#nudge-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#nudge-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.nudge-action {
+  align-self: center;
+  flex: 0 0 auto;
+  margin-right: 4px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 10px;
+  font-variant: small-caps;
+  letter-spacing: 0.3px;
+  color: var(--ink-faint);
+  background: transparent;
+}
+.nudge-action:hover { opacity: 1; color: var(--ink); background: var(--bg); }
+#nudge-dismiss { font-size: 14px; font-variant: normal; padding: 0 8px 2px; }
+
+#red-stats { margin-top: 9px; }
 
 /* ---- trace ----------------------------------------------------------- */
 

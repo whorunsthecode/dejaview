@@ -66,5 +66,12 @@ export class TextCache {
       return { ...result, url: tab.url, cached: false };
     } catch (e) { return fail('error', e.message); }
   }
+  /** Text already extracted for a URL, or null. Never reads a page to answer. */
+  async textFor(url) {
+    await this.ready;
+    const rows = [...this.rows.values()].filter(row => row.url === url);
+    if (!rows.length) return null;
+    return rows.sort((a, b) => b.at - a.at)[0].result?.text ?? null;
+  }
   async clear() { this.generation++; await this.ready; await this.writes; this.rows.clear(); await this.store.clear(); }
 }

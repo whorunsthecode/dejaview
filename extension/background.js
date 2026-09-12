@@ -16,6 +16,16 @@ const manifest = chrome.runtime.getManifest();
 // Register tab listeners synchronously at worker startup; only metadata is indexed.
 getBrowserServices().index.queue.catch(error => console.warn('dejavu: index startup failed', error.message));
 
+/**
+ * Rediscovery watches for pages that signal active work. Its listeners must be
+ * registered in this first turn of the event loop — MV3 discards any added
+ * later, and the worker sleeps between events, so there is no second chance.
+ *
+ * It checks its own enabled setting before doing anything, so registering here
+ * costs nothing when the feature is off.
+ */
+const rediscovery = getBrowserServices().rediscovery.start();
+
 // Clicking the toolbar icon opens the side panel. This setting persists, so
 // registering it once at install is enough.
 chrome.runtime.onInstalled.addListener(() => {
@@ -103,6 +113,25 @@ on(MSG.HIGHLIGHT, async (payload) => {
   return highlightTab(tabId, payload?.quotes);
 });
 
+/**
+ * Rediscovery, answering the panel.
+ *
+ * NUDGE travels the other way — worker to panel, unprompted — so there is no
+ * listener for it here. NUDGE_STATE exists because the panel is usually shut
+ * when a nudge fires: the badge is what the user sees, and the panel asks for
+ * the pending nudge when it next opens.
+ */
+on(MSG.NUDGE_STATE, () => rediscovery.status());
+
+on(MSG.NUDGE_ACTION, async (payload) => {
+  if (payload?.action === "clear-log") return rediscovery.clearLog();
+  const id = typeof payload?.id === "string" ? payload.id : null;
+  if (!id) return { ok: false, error: "NUDGE_ACTION needs an id" };
+  return rediscovery.respond(id, payload?.action);
+});
+
+on(MSG.SURPRISE, () => rediscovery.surprise());
+
 // TRACE and SKILL travel outward from the worker, so there is deliberately no
 // listener for them here.
 
@@ -113,8 +142,10 @@ on(MSG.HIGHLIGHT, async (payload) => {
  *   await dejavu.readTab(<id>)        one tab, on demand
  *   await dejavu.readTabs([a, b, c])  a batch where one failure cannot stop the rest
  *   await dejavu.highlightTab(<id>, ["a verbatim quote"])
+ *   await dejavu.rediscovery.status()     what has been surfaced, and the accept rate
+ *   await dejavu.rediscovery.surprise()   resurface one thing now
  *
  * Extraction is deliberately reachable only from here and from the agent's
  * read_tab tool. Nothing in this worker extracts text on its own.
  */
-globalThis.dejavu = { listTabs, readTab, readTabs, highlightTab, loadEnv, renderSkill, clearLocalCorpus, MAX_CHARS };
+globalThis.dejavu = { listTabs, readTab, readTabs, highlightTab, loadEnv, renderSkill, clearLocalCorpus, rediscovery, MAX_CHARS };

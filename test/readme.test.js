@@ -40,17 +40,41 @@ test("every message type is documented", () => {
 });
 
 test("the privacy section states the default and both opt-ins", () => {
-  // The original promise was that history is read only to date open tabs. Two
+  // The original promise was that history is read only to date open tabs. Three
   // features now go further, so the claim had to change rather than be quietly
   // kept: the default, and every way past it, must all be named here.
   assert.match(README, /history is used only to date already-open tabs/);
   assert.match(README, /Include recent history/);
   assert.match(README, /read history/);
   assert.match(README, /off until you turn them on/);
-  assert.match(README, /Neither runs in the background/);
+  assert.match(README, /Neither of those two runs in the background/);
   // Wrap-tolerant: the README reflows, and a content assertion must not break
   // just because a phrase lands across two lines.
   assert.match(README, /Only selected pages are\s+reopened and read/);
+});
+
+test("the one feature that does run in the background says so", () => {
+  // Rediscovery watches navigations and is on by default. A privacy section
+  // that quietly kept the old "nothing runs in the background" line would be
+  // worse than having no privacy section at all.
+  const privacy = README.slice(README.indexOf("## Privacy"));
+  assert.match(privacy, /Rediscovery is the one part that runs in the background, and it is on by\s+default/);
+  assert.match(privacy, /reads a page's content only on a page that\s+triggers/);
+  assert.match(privacy, /Turn it off/);
+});
+
+test("rediscovery's switch really is checked before it does anything", () => {
+  // The README promises that off means no watching at all. That promise lives
+  // or dies on the order of the checks in consider().
+  const engine = readFileSync(new URL("extension/rediscovery/engine.js", root), "utf8");
+  const body = engine.slice(engine.indexOf("async consider("));
+  const enabledAt = body.indexOf("REDISCOVERY_ENABLED");
+  const peekAt = body.indexOf("this.peek(");
+  assert.ok(enabledAt > 0 && peekAt > 0, "consider() no longer looks the way this test assumes");
+  assert.ok(enabledAt < peekAt, "the page is read before the feature checks whether it is on");
+
+  // Same promise on the other two paths: the badge and the dwell table.
+  assert.match(engine, /async remember\(session\) \{\s*const settings = await this\.settings\(\);\s*if \(!settings\.REDISCOVERY_ENABLED\) return null;/);
 });
 
 test("the README does not still claim history is never read", () => {

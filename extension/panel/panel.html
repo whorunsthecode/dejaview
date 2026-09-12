@@ -49,6 +49,14 @@
         </g>
       </symbol>
 
+      <symbol id="i-rediscover" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
+          <path d="M3.5 4.5V10h5.5" />
+          <path d="M12 8v4.4l3 1.8" />
+        </g>
+      </symbol>
+
       <symbol id="i-key" viewBox="0 0 24 24">
         <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="8" cy="12" r="4" />
@@ -60,6 +68,7 @@
     <header>
       <div class="title-row">
         <h1>deja<em>-</em>view</h1>
+        <button id="surprise" class="chip" type="button" title="Resurface something you read and forgot">surprise me</button>
         <button id="habits" class="chip" type="button" title="Visualise your tabs and habits">habits</button>
         <button id="keys-toggle" class="chip" type="button" title="API keys and connectors">keys</button>
         <p id="status" class="pending">starting&hellip;</p>
@@ -153,11 +162,66 @@
           <p id="redirect-hint" class="hint mono"></p>
         </section>
 
+        <section class="key-group">
+          <h2 class="key-group-head">
+            <svg class="icon" aria-hidden="true"><use href="#i-rediscover" /></svg>
+            Rediscovery
+          </h2>
+          <label class="option" for="red-enabled">
+            <input id="red-enabled" type="checkbox" />
+            Surface things I read and forgot
+          </label>
+          <p class="hint">
+            When you open a doc, repo, Notion page or ticket, deja-view checks what
+            you already have open for something older that relates. At most one
+            nudge an hour and three a day. Titles and URLs are checked locally;
+            a page&rsquo;s content is only looked at on a page that triggers.
+          </p>
+
+          <label class="option" for="red-history">
+            <input id="red-history" type="checkbox" />
+            Also search browsing history
+          </label>
+
+          <div class="options">
+            <label class="option" for="red-age">
+              Older than
+              <input id="red-age" type="number" min="1" max="3650" step="1" />
+              days
+            </label>
+            <label class="option" for="red-threshold">
+              Confidence
+              <input id="red-threshold" type="number" min="0.05" max="0.95" step="0.05" />
+            </label>
+          </div>
+
+          <p id="red-stats" class="hint"></p>
+          <div class="key-actions">
+            <button id="red-clear" class="chip" type="button">clear the log</button>
+          </div>
+        </section>
+
         <div class="key-actions">
           <button id="save-key" type="submit">save</button>
         </div>
       </form>
     </header>
+
+    <!--
+      A rediscovery. Quiet on purpose: a strip, not a dialog. It never takes
+      focus and never blocks the goal input, so it cannot interrupt typing.
+    -->
+    <aside id="nudge" hidden>
+      <button id="nudge-open" type="button" title="Open at the relevant passage">
+        <svg class="icon" aria-hidden="true"><use href="#i-rediscover" /></svg>
+        <span class="nudge-text">
+          <span id="nudge-title"></span>
+          <span id="nudge-meta"></span>
+        </span>
+      </button>
+      <button id="nudge-less" class="nudge-action" type="button" title="Less like this" aria-label="Less like this">less like this</button>
+      <button id="nudge-dismiss" class="nudge-action" type="button" title="Dismiss" aria-label="Dismiss">&times;</button>
+    </aside>
 
     <main>
       <p id="empty">

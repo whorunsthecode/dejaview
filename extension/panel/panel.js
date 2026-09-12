@@ -13,6 +13,7 @@ import { skillFilename, skillDescription, replayDelay, elide } from "./format.js
 import { obsidianTarget } from "./export.js";
 import { createNotionPage } from "./notion.js";
 import { createGoogleDoc } from "./gdocs.js";
+import { SETTING_KEYS as REDISCOVERY_KEYS, normalizeSettings } from "../rediscovery/settings.js";
 
 const els = {
   trace: document.getElementById("trace"),
@@ -40,7 +41,20 @@ const els = {
   apiKey: document.getElementById("api-key"),
   exaKey: document.getElementById("exa-key"),
   keysToggle: document.getElementById("keys-toggle"),
-  habits: document.getElementById("habits")
+  habits: document.getElementById("habits"),
+  surprise: document.getElementById("surprise"),
+  nudge: document.getElementById("nudge"),
+  nudgeTitle: document.getElementById("nudge-title"),
+  nudgeMeta: document.getElementById("nudge-meta"),
+  nudgeOpen: document.getElementById("nudge-open"),
+  nudgeLess: document.getElementById("nudge-less"),
+  nudgeDismiss: document.getElementById("nudge-dismiss"),
+  redEnabled: document.getElementById("red-enabled"),
+  redHistory: document.getElementById("red-history"),
+  redAge: document.getElementById("red-age"),
+  redThreshold: document.getElementById("red-threshold"),
+  redStats: document.getElementById("red-stats"),
+  redClear: document.getElementById("red-clear")
 };
 
 /** Resolved tab titles, keyed by tab id, so a `ref` can name its source. */
@@ -479,6 +493,176 @@ async function replayScriptedRun() {
   const markdown = await fetch(assetUrl("extension/panel/demo-skill.md")).then((r) => r.text());
   showSkill(markdown);
 }
+// ---- rediscovery ------------------------------------------------------
+
+/** The nudge currently on screen, if any. At most one is ever shown. */
+let pendingNudge = null;
+
+/**
+ * Draw a rediscovery.
+ *
+ * Deliberately undramatic: no modal, no sound, no focus change. It appears in
+ * the flow above the trace and waits. The three things it says are the ones
+ * needed to judge it without opening anything — what it is, when you read it,
+ * and why it came up now.
+ */
+function renderNudge(nudge) {
+  if (!nudge?.item) return hideNudge();
+  pendingNudge = nudge;
+
+  els.nudgeTitle.textContent = nudge.item.title;
+  els.nudgeTitle.title = nudge.item.url;
+
+  const when = nudge.firstReadOn
+    ? "First read " + nudge.firstReadOn + ", " + nudge.age + "."
+    : "First read: unknown.";
+  els.nudgeMeta.textContent = when + " " + nudge.why;
+  els.nudgeOpen.title = nudge.passage
+    ? "Open at: “" + elide(nudge.passage, 80) + "”"
+    : "Open " + nudge.item.url;
+
+  els.nudge.hidden = false;
+}
+
+function hideNudge() {
+  pendingNudge = null;
+  els.nudge.hidden = true;
+}
+
+/**
+ * Record what the user did. The bar goes away first: an answer that waits on a
+ * round trip feels like a jam, and the worker's reply changes nothing on screen.
+ */
+async function answerNudge(action) {
+  const nudge = pendingNudge;
+  if (!nudge) return;
+  hideNudge();
+
+  try {
+    const reply = await request(MSG.NUDGE_ACTION, { id: nudge.id, action });
+    if (!reply?.ok) {
+      renderEvent(panelEvent("error", "Could not record that answer.", reply?.error ?? "no reason given"));
+    } else if (action === "less") {
+      setStatus("noted — less like that", "ok");
+    } else if (action === "dismiss") {
+      setStatus("dismissed", "ok");
+    }
+  } catch (err) {
+    renderEvent(panelEvent("error", "Could not reach the worker.", err.message));
+  }
+
+  await refreshRediscovery({ quiet: true });
+}
+
+els.nudgeOpen?.addEventListener("click", () => answerNudge("open"));
+els.nudgeDismiss?.addEventListener("click", () => answerNudge("dismiss"));
+els.nudgeLess?.addEventListener("click", () => answerNudge("less"));
+
+// A nudge can arrive while the panel is open; usually it is shut and the badge
+// carries it until the panel next asks.
+on(MSG.NUDGE, (payload) => {
+  renderNudge(payload?.nudge);
+});
+
+els.surprise?.addEventListener("click", async () => {
+  setStatus("looking for something you forgot…", "pending");
+  try {
+    const reply = await request(MSG.SURPRISE, {});
+    if (reply?.fired) {
+      renderNudge(reply.nudge);
+      setStatus("resurfaced", "ok");
+    } else {
+      // Nothing to show is a real answer, not a failure.
+      setStatus(reply?.reason ?? "nothing to surface", "");
+    }
+  } catch (err) {
+    setStatus("worker unreachable", "bad");
+    renderEvent(panelEvent("error", "Could not ask for a rediscovery.", err.message));
+  }
+});
+
+/** The feature's own scoreboard, so it can be seen failing rather than argued about. */
+function renderRediscoveryStats(stats) {
+  if (!els.redStats) return;
+  if (!stats?.total) {
+    els.redStats.textContent = "Nothing surfaced yet.";
+    return;
+  }
+  const rate = stats.acceptRate === null
+    ? "none answered yet"
+    : Math.round(stats.acceptRate * 100) + "% opened";
+  const parts = [
+    stats.total + " surfaced",
+    stats.answered + " answered",
+    rate
+  ];
+  if (stats.less) parts.push(stats.less + " marked less like this");
+  els.redStats.textContent = parts.join(" · ") + ".";
+}
+
+/** Ask the worker for the pending nudge and the log summary. */
+async function refreshRediscovery({ quiet = false } = {}) {
+  try {
+    const state = await request(MSG.NUDGE_STATE, {});
+    if (!state?.ok) return null;
+    renderRediscoveryStats(state.stats);
+    if (state.pending) renderNudge(state.pending);
+    return state;
+  } catch (err) {
+    // The worker being asleep is not worth a line in the trace.
+    if (!quiet) renderEvent(panelEvent("error", "Could not read the rediscovery log.", err.message));
+    return null;
+  }
+}
+
+els.redClear?.addEventListener("click", async () => {
+  try {
+    await request(MSG.NUDGE_ACTION, { action: "clear-log" });
+  } catch {
+    // Nothing useful to say: the refresh below will show whether it worked.
+  }
+  hideNudge();
+  await refreshRediscovery({ quiet: true });
+  setStatus("rediscovery log cleared", "ok");
+});
+
+/** The four rediscovery settings, and the control each is edited with. */
+const REDISCOVERY_FIELDS = [
+  { key: "REDISCOVERY_ENABLED", field: "redEnabled", kind: "bool" },
+  { key: "REDISCOVERY_HISTORY", field: "redHistory", kind: "bool" },
+  { key: "REDISCOVERY_MIN_AGE_DAYS", field: "redAge", kind: "number" },
+  { key: "REDISCOVERY_THRESHOLD", field: "redThreshold", kind: "number" }
+];
+
+async function fillRediscoverySettings() {
+  let settings;
+  try {
+    settings = normalizeSettings(await chrome.storage.local.get(REDISCOVERY_KEYS));
+  } catch {
+    settings = normalizeSettings({});
+  }
+  for (const { key, field, kind } of REDISCOVERY_FIELDS) {
+    const input = els[field];
+    if (!input) continue;
+    if (kind === "bool") input.checked = settings[key] === true;
+    else input.value = String(settings[key]);
+  }
+  return settings;
+}
+
+/** Written through normalizeSettings, so a typed-in 0 or 9999 cannot be stored. */
+async function saveRediscoverySettings() {
+  const raw = {};
+  for (const { key, field, kind } of REDISCOVERY_FIELDS) {
+    const input = els[field];
+    if (!input) continue;
+    raw[key] = kind === "bool" ? input.checked : input.value;
+  }
+  const settings = normalizeSettings(raw);
+  await chrome.storage.local.set(settings);
+  return settings;
+}
+
 // ---- credentials ------------------------------------------------------
 
 /** Every credential the panel stores, and the field it comes from. */
@@ -513,6 +697,9 @@ async function showKeyForm() {
     // Worth continuing without: the fields still accept new values.
   }
 
+  await fillRediscoverySettings();
+  await refreshRediscovery({ quiet: true });
+
   // The redirect Google has to be told about, shown rather than documented,
   // because it contains this install's own extension id.
   if (els.redirectHint && chrome.identity?.getRedirectURL) {
@@ -540,8 +727,13 @@ els.keyForm.addEventListener("submit", async (e) => {
     }
   }
 
+  // Settings are saved on every submit, credentials or not: a user who only
+  // came here to turn rediscovery off must not have to type a key to do it.
+  await saveRediscoverySettings();
+
   if (!saved.length) {
     els.keyForm.hidden = true;
+    setStatus("settings saved", "ok");
     return;
   }
 
@@ -601,3 +793,5 @@ setRunning(false);
 await loadObsidianSettings();
 await preloadStubTitles();
 await handshake();
+// A nudge that fired while the panel was shut is waiting on the badge, not here.
+await refreshRediscovery({ quiet: true });

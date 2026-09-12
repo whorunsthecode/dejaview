@@ -1,0 +1,68 @@
+[
+  {
+    "id": 481,
+    "url": "https://auth0.com/docs/get-started/authentication-and-authorization-flow/device-authorization-flow",
+    "title": "Device Authorization Flow — Auth0 Docs",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1710460800000,
+    "lastAccessed": 1757600000000,
+    "text": "The Device Authorization Flow is designed for input-constrained devices that connect to the internet. Instead of authenticating the user directly, the device asks the user to go to a link on their computer or smartphone and authorize the device.\n\nWhen the device polls the token endpoint, it must include the device_code it received in the initial request. The authorization server responds with authorization_pending until the user completes the flow. Once the user authorizes, the token endpoint returns an access_token and, if requested, a refresh_token.\n\nRefresh tokens for device flow expire after 30 days of inactivity by default. Rotating refresh tokens must be exchanged before the previous token is invalidated; if a client attempts to reuse a rotated token, the entire refresh token family is revoked as a security measure.\n\nThe polling interval returned by the authorization server must be respected. If the device polls faster than the interval, the server may return slow_down and increase the interval. Ignoring slow_down responses can result in the device being temporarily blocked from the token endpoint.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 482,
+    "url": "https://datatracker.ietf.org/doc/html/rfc8628",
+    "title": "RFC 8628: OAuth 2.0 Device Authorization Grant",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1709251200000,
+    "lastAccessed": 1757500000000,
+    "text": "This specification defines an OAuth 2.0 protocol extension enabling OAuth clients on such devices (like smart TVs, media consoles, digital picture frames, and printers) to obtain user authorization for accessing protected resources without using an on-device user-agent, provided that they have an Internet connection.\n\nThe device MUST NOT request tokens more frequently than the interval specified in the device authorization response. If the interval field is not present, clients MUST use 5 seconds as the default. Upon receipt of the slow_down error, the client MUST increase the polling interval by 5 seconds for all subsequent requests.\n\nThe expires_in value specifies the lifetime in seconds of the device_code and user_code. If the user does not authorize the device within this window, the client must restart the flow. Implementations should surface the remaining time to the user rather than silently expiring.\n\nRefresh token handling is out of scope for this document and follows the base OAuth 2.0 specification (RFC 6749). However, implementers should note that device-flow refresh tokens are often longer-lived than browser-flow tokens because there is no interactive session to renew.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 483,
+    "url": "https://auth0.com/pricing",
+    "title": "Auth0 Pricing — Plans for Every Team",
+    "windowId": 1,
+    "groupTitle": "auth",
+    "firstVisit": 1755000000000,
+    "lastAccessed": 1757500000000,
+    "text": "Auth0 offers a range of plans to suit teams of every size. Start free and scale as you grow, with enterprise-grade security built in from day one.\n\nThe Free plan includes up to 7,500 active users and unlimited social connections. The Essentials plan adds multi-factor authentication and role-based access control. The Professional plan adds enterprise connections, and the Enterprise plan is fully customizable with a dedicated success manager.\n\nAll plans include our world-class support and 99.99% uptime SLA. Talk to sales to find the plan that's right for you.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 484,
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "title": "Using the Fetch API — MDN Web Docs",
+    "windowId": 2,
+    "groupTitle": null,
+    "firstVisit": 1740000000000,
+    "lastAccessed": 1757000000000,
+    "text": "The Fetch API provides a JavaScript interface for accessing and manipulating parts of the protocol, such as requests and responses. It also provides a global fetch() method that provides an easy, logical way to fetch resources asynchronously across the network.\n\nBy default, fetch requests do not send or receive cookies, resulting in unauthenticated requests if the site relies on maintaining a user session. To send cookies, the credentials init option must be set. When credentials is set to 'same-origin' the browser will only send cookies for requests to the same origin. When set to 'include' the browser will send cookies for cross-origin requests as well, subject to CORS.\n\nA fetch() promise only rejects when the request fails, for example because of a network error or if anything prevented the request from completing. A fetch() promise does not reject on HTTP errors (404, etc.). Instead, a then() handler must check the Response.ok and/or Response.status properties.\n\nAborting a fetch is done via an AbortController. Pass the controller's signal into the fetch options and call abort() on the controller to cancel the request. This is the correct way to implement request timeouts; wrapping fetch in Promise.race with a setTimeout leaves the underlying request running.\n\nStreaming responses are supported through Response.body, which is a ReadableStream. This allows processing very large responses without holding the whole body in memory. Consuming the stream is mutually exclusive with calling .json() or .text() on the same response.\n\nFor request retries, exponential backoff with jitter is the standard pattern. Retrying on every failure without a cap can turn a transient outage into a self-inflicted DDOS on the origin.\n\nCORS preflight requests are triggered by non-simple methods (anything other than GET, HEAD, POST) or non-simple headers. A preflight is an OPTIONS request that the browser sends automatically before the actual request. Servers must respond with the appropriate Access-Control-Allow-* headers or the browser will block the actual request.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 485,
+    "url": "https://www.kentbeck.com/posts/tidy-first-a-personal-exercise-in-empirical-software-design",
+    "title": "Tidy First? — Kent Beck on shipping the deliberately worse v1",
+    "windowId": 3,
+    "groupTitle": "reading",
+    "firstVisit": 1706745600000,
+    "lastAccessed": 1750000000000,
+    "text": "The team I worked with in 1998 had a rule I have never forgotten. When we could not decide between two designs, we shipped the one we knew was worse, on purpose, because the worse one taught us the constraint we did not know we had.\n\nThe instinct in software is to defer shipping until the design is right. That instinct is wrong in exactly the case where you have no way of knowing what right means yet. You do not learn the constraint by staring at the code. You learn it by putting the code in front of a user and watching where it breaks.\n\nWhat I mean by 'deliberately worse' is not sloppy. It is the smallest thing that could possibly answer the question in front of you, and then a genuine commitment to throw it away when it does. The trap is that the worse version works well enough that nobody wants to redo it, and now you are stuck with a design chosen for learning, being used as a design chosen for production.\n\nThe test is: could you say out loud, to the team, 'we picked this because we did not know what to pick, and now we know, so we are changing it'? If yes, the deliberately-worse move paid off. If the answer is 'well, it works, let's move on', it did not, and you have added tech debt for no learning in return.",
+    "textStatus": "ok"
+  },
+  {
+    "id": 486,
+    "url": "https://www.smittenkitchen.com/2009/02/best-chocolate-pudding/",
+    "title": "Best Chocolate Pudding — Smitten Kitchen",
+    "windowId": 3,
+    "groupTitle": null,
+    "firstVisit": 1748000000000,
+    "lastAccessed": 1757400000000,
+    "text": null,
+    "textStatus": "blocked"
+  }
+]

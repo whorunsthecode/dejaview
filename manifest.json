@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "dejavu",
+  "version": "0.0.1",
+  "description": "Reads your open tabs and converts what you've already read into a SKILL.md your coding agent can execute later.",
+  "permissions": ["tabs", "scripting", "history", "storage", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "extension/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["extension/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "extension/panel/panel.html"
+  },
+  "action": {
+    "default_title": "dejavu"
+  }
+}

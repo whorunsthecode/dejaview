@@ -1,0 +1,9 @@
+{
+  "name": "dejavu",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run:local": "node agent/run-local.js"
+  }
+}

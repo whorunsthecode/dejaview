@@ -1,0 +1,22 @@
+[
+  { "t": 1757600000000, "kind": "plan",   "label": "6 tabs. 3 look like they cover the device flow.",          "detail": "Titles mention Auth0 device flow, RFC 8628, and Auth0 pricing.", "ref": null },
+  { "t": 1757600001000, "kind": "tool",   "label": "list_tabs()",                                              "detail": "",                                                              "ref": null },
+  { "t": 1757600001500, "kind": "result", "label": "6 tabs enumerated.",                                       "detail": "Oldest opened Jan 2024. Newest opened last week.",              "ref": null },
+  { "t": 1757600002000, "kind": "plan",   "label": "Opening 3 tabs that look on-topic.",                       "detail": "Auth0 device flow docs, RFC 8628, Auth0 pricing (to check).",   "ref": null },
+  { "t": 1757600003000, "kind": "tool",   "label": "read_tab: Auth0 device flow docs (opened Mar 2024)",       "detail": "",                                                              "ref": 481 },
+  { "t": 1757600004500, "kind": "result", "label": "Useful. Has refresh token rotation and slow_down handling.", "detail": "",                                                            "ref": 481 },
+  { "t": 1757600005000, "kind": "tool",   "label": "read_tab: RFC 8628 (opened Mar 2024)",                     "detail": "",                                                              "ref": 482 },
+  { "t": 1757600006500, "kind": "result", "label": "Useful. Confirms the 5-second polling interval default.",   "detail": "",                                                              "ref": 482 },
+  { "t": 1757600007000, "kind": "tool",   "label": "read_tab: Auth0 pricing",                                  "detail": "",                                                              "ref": 483 },
+  { "t": 1757600008000, "kind": "result", "label": "Not useful, this is the marketing page. Moving on.",       "detail": "",                                                              "ref": 483 },
+  { "t": 1757600009000, "kind": "note",   "label": "Nothing here covers rate limiting after slow_down.",        "detail": "The RFC says increase by 5s; nothing says what to do if it keeps returning slow_down.", "ref": null },
+  { "t": 1757600009500, "kind": "tool",   "label": "web_search: oauth device flow slow_down repeated backoff",  "detail": "",                                                              "ref": null },
+  { "t": 1757600011000, "kind": "result", "label": "Found one source on cumulative slow_down handling.",       "detail": "IETF errata note; will cite.",                                  "ref": null },
+  { "t": 1757600011500, "kind": "plan",   "label": "Checking one older tab that may rhyme.",                    "detail": "Kent Beck 'Tidy First?' from Jan 2024. Loose match candidate.", "ref": null },
+  { "t": 1757600012000, "kind": "tool",   "label": "read_tab: Tidy First? (opened Jan 2024)",                  "detail": "",                                                              "ref": 485 },
+  { "t": 1757600013000, "kind": "result", "label": "Skipping; different problem shape.",                        "detail": "About shipping-to-learn, not about token flows.",               "ref": 485 },
+  { "t": 1757600013500, "kind": "tool",   "label": "search_in_tab: Fetch API — 'retry'",                        "detail": "",                                                              "ref": 484 },
+  { "t": 1757600014500, "kind": "result", "label": "Got the exponential-backoff-with-jitter passage.",          "detail": "",                                                              "ref": 484 },
+  { "t": 1757600015000, "kind": "tool",   "label": "write_skill(fix-device-flow-refresh)",                     "detail": "",                                                              "ref": null },
+  { "t": 1757600016000, "kind": "done",   "label": "Wrote fix-device-flow-refresh.md from 4 sources.",         "detail": "Cites tabs opened Jan 2024 and Mar 2024.",                     "ref": null }
+]

@@ -11,7 +11,11 @@ export async function requestJSON(url, init, { fetchImpl = globalThis.fetch, tim
       if (attempt < retries) continue;
       throw new Error(controller.signal.aborted ? 'Request timed out' : 'Network request failed', { cause: error });
     } finally { clearTimeout(timer); }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
     const data = JSON.parse(text);
     if (data.error) throw new Error('API returned an error');
     return data;

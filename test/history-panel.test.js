@@ -21,15 +21,13 @@ test('panel defaults history off and sends the explicit checkbox choice with RUN
     await import('../extension/panel/panel.js');
     const box = document.getElementById('include-history');
     assert.equal(box.checked, false);
-    const budget = document.getElementById('read-limit');
-    assert.equal(budget.value, '8');
+    assert.equal(document.getElementById('read-limit'), null);
     document.getElementById('goal').value = 'Find a stored procedure';
     for (const checked of [false, true]) {
       box.checked = checked;
-      budget.value = checked ? '48' : '24';
       document.getElementById('run-form').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
       await new Promise(resolve => setTimeout(resolve, 0));
-      assert.deepEqual(requests.filter(r => r.type === 'RUN').at(-1).payload, { goal: 'Find a stored procedure', includeHistory: checked, maxReads: checked ? 48 : 24 });
+      assert.deepEqual(requests.filter(r => r.type === 'RUN').at(-1).payload, { goal: 'Find a stored procedure', includeHistory: checked });
     }
   } finally { Object.assign(globalThis, saved); dom.window.close(); }
 });

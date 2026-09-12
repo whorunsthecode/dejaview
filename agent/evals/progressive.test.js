@@ -12,6 +12,21 @@ const tabs = Array.from({ length: 20 }, (_, id) => ({ id, title: `Shader precisi
 const triage = async () => json({ open: tabs.map(t => ({ id: t.id, why: 'May explain shader precision constraints.' })), skip: [], note: 'Compare the preview procedures.' });
 const gaps = async () => json({ covered: 'Precision procedure present.', gaps: [] });
 
+test('all failed previews retain errors and stop before further model spending', async () => {
+  const trace = [];
+  const unexpected = async () => { assert.fail('No model calls after an all-failed preview batch'); };
+  const result = await runAgent({ goal: 'shader precision', env: {}, progressive: true,
+    tabSource: { list: async () => tabs, peek: async () => { throw new Error('preview injection: Browser operation timed out'); }, read: unexpected },
+    triageModel: triage, peekModel: unexpected, passageModel: unexpected, gapModel: unexpected, model: unexpected,
+    onTrace: e => trace.push(e)
+  });
+  assert.equal(result.status, 'error');
+  assert.equal(result.reads, 0);
+  assert.equal(trace.filter(e => e.kind === 'tool' && e.label === 'Peeking at tab').length, 20);
+  assert.equal(trace.filter(e => e.kind === 'result' && /preview injection: Browser operation timed out/.test(e.detail)).length, 20);
+  assert.ok(trace.some(e => e.kind === 'error' && /No preview could be read/.test(e.label)));
+});
+
 test('peek twenty, reject marketing, read eight with bounded parallelism and recover a thrown read', async () => {
   let active = 0, peak = 0, reads = 0, peeked = 0;
   const trace = [], highlights = [];

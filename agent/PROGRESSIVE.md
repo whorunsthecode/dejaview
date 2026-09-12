@@ -58,8 +58,9 @@ cache hits. No agent module imports extension code or Chrome APIs.
 - Concurrent requests for the same tab share extraction. Persistent writes are
   serialized for eviction/clear correctness. Storage failure leaves a memory-only
   fallback and emits a diagnostic. Incognito metadata/text is not persisted.
-- No cached text is used for discarded/frozen/loading tabs: they return blocked
-  without activation/reload. A browser API wait times out after ten seconds; an
+- No cached text is used for discarded/frozen/navigating tabs: they return blocked
+  without activation/reload. Committed pages with slow resources use immediate
+  injection instead of waiting for document idle. A browser API wait times out after ten seconds; an
   injection already dispatched cannot be cancelled by that timeout.
 
 To clear cached text and rebuild open-tab metadata, inspect the extension service

@@ -45,6 +45,7 @@ export async function highlightTab(tabId, quotes) {
 
     const frames = await chrome.scripting.executeScript({
       target: { tabId },
+      injectImmediately: true,
       func: highlightInPage,
       args: [list]
     });

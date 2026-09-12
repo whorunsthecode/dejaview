@@ -1,8 +1,7 @@
 import { historyUrl } from '../shared/history.js';
+import { indexTerms as words } from '../shared/metadata-index.js';
 
 export const TRIAGE_LIMIT = 50;
-const stop = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'how', 'can', 'into']);
-const words = text => [...new Set((String(text).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(w => w.length > 2 && !stop.has(w)))];
 
 /** Local metadata ranking only. Preserve routes/version queries and never fetch pages. */
 export function shortlistTabs(tabs, goal, mode = 'tight') {

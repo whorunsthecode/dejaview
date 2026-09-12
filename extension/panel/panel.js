@@ -11,6 +11,7 @@ import { MSG, on, request } from "../../shared/messages.js";
 import { isTraceEvent } from "../../shared/types.js";
 import { skillFilename, skillDescription, replayDelay, elide } from "./format.js";
 import { obsidianTarget } from "./export.js";
+import { credentialState, persistCredentials } from "./credentials.js";
 import { createNotionPage } from "./notion.js";
 import { createGoogleDoc } from "./gdocs.js";
 import { SETTING_KEYS as REDISCOVERY_KEYS, normalizeSettings } from "../rediscovery/settings.js";
@@ -30,7 +31,6 @@ const els = {
   goal: document.getElementById("goal"),
   run: document.getElementById("run"),
   includeHistory: document.getElementById("include-history"),
-  readLimit: document.getElementById("read-limit"),
   result: document.getElementById("result"),
   skillName: document.getElementById("skill-name"),
   skillDesc: document.getElementById("skill-desc"),
@@ -114,6 +114,14 @@ async function titleFor(ref) {
 
 function renderEvent(ev) {
   isTraceEvent(ev);
+  // Keep internal limits in the trace contract without presenting them as a
+  // user setting or implying that only this many open tabs were considered.
+  if (/^Page budget:/.test(ev.label)) return;
+  const displayLabel = ev.label
+    .replace(/^Previewing \d+ candidates before committing full reads\.$/, 'Checking promising sources.')
+    .replace(/^Peeked \d+; selected \d+ full reads\.$/, 'Source selection complete.')
+    .replace(/^Locally shortlisted \d+ of \d+ open tabs.*$/, 'Shortlisted promising sources from your open tabs.')
+    .replace(/^Preview \d+: /, 'Preview: ');
   els.empty.hidden = true;
 
   const li = document.createElement("li");
@@ -126,7 +134,7 @@ function renderEvent(ev) {
 
   const label = document.createElement("span");
   label.className = "label";
-  label.textContent = ev.label;
+  label.textContent = displayLabel;
   li.appendChild(label);
 
   if (ev.detail) {
@@ -178,7 +186,6 @@ function setRunning(next) {
   els.goal.disabled = next;
   els.run.disabled = next;
   els.includeHistory.disabled = next;
-  els.readLimit.disabled = next;
   els.run.textContent = next ? "running…" : "run";
 }
 
@@ -316,8 +323,8 @@ async function sendToObsidian() {
   renderEvent(
     panelEvent(
       "note",
-      "Wrote " + target.path + " to Obsidian.",
-      target.chunks === 1 ? "One call." : target.chunks + " calls, appended in order."
+      "Requested Obsidian to open " + target.path + ".",
+      "Obsidian desktop must be installed with a vault open. If nothing opens, use Download to save the complete skill."
     )
   );
 }
@@ -470,7 +477,7 @@ els.form.addEventListener("submit", async (e) => {
   renderEvent(panelEvent("plan", "Goal: " + goal, els.includeHistory.checked ? "Reading open tabs, with recent history available if useful." : "Reading the tabs you already have open."));
 
   try {
-    const reply = await request(MSG.RUN, { goal, includeHistory: els.includeHistory.checked, maxReads: Number(els.readLimit.value) });
+    const reply = await request(MSG.RUN, { goal, includeHistory });
 
     if (!reply?.ok) {
       renderEvent(panelEvent("error", "The worker rejected the run.", reply?.error ?? "no reason given"));
@@ -689,14 +696,13 @@ async function fillLocalSettings() {
   return settings;
 }
 
-async function saveLocalSettings() {
-  const settings = normalizeLocalSettings({
+/** Normalized, so a half-typed URL or a blank model name cannot be stored. */
+function collectLocalSettings() {
+  return normalizeLocalSettings({
     LOCAL_MODEL_ENABLED: Boolean(els.localEnabled?.checked),
     LOCAL_MODEL_URL: els.localUrl?.value,
     LOCAL_MODEL_NAME: els.localName?.value
   });
-  await chrome.storage.local.set(settings);
-  return settings;
 }
 
 els.localUrl?.addEventListener("input", renderLocalNote);
@@ -755,7 +761,7 @@ async function fillRediscoverySettings() {
 }
 
 /** Written through normalizeSettings, so a typed-in 0 or 9999 cannot be stored. */
-async function saveRediscoverySettings() {
+function collectRediscoverySettings() {
   const raw = {};
   for (const { key, field, kind } of REDISCOVERY_FIELDS) {
     const input = els[field];
@@ -763,7 +769,6 @@ async function saveRediscoverySettings() {
     raw[key] = kind === "bool" ? input.checked : input.value;
   }
   const settings = normalizeSettings(raw);
-  await chrome.storage.local.set(settings);
   return settings;
 }
 
@@ -791,8 +796,11 @@ async function showKeyForm() {
     for (const { key, field, secret } of CREDENTIALS) {
       const input = els[field];
       if (!input) continue;
+      const state = credentialState(stored[key], secret, key);
+      const badge = document.getElementById(input.id + '-status');
+      if (badge) badge.textContent = state;
       if (secret) {
-        if (stored[key]) input.placeholder = "saved — leave blank to keep";
+        input.placeholder = state === 'Saved locally' ? 'Saved — leave blank to keep' : state === 'Needs attention' ? 'Paste the original key again' : 'Paste key, then Save changes';
       } else if (stored[key]) {
         input.value = stored[key];
       }
@@ -821,39 +829,38 @@ els.keysToggle?.addEventListener("click", () => {
 
 els.keyForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-
-  const update = {};
-  const saved = [];
-  for (const { key, field, label } of CREDENTIALS) {
-    const value = els[field]?.value.trim();
-    if (value) {
-      update[key] = value;
-      saved.push(label);
+  const button = document.getElementById('save-key');
+  const feedback = document.getElementById('key-feedback');
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  const entries = CREDENTIALS.map(entry => ({ ...entry, value: els[entry.field]?.value ?? '' }));
+  try {
+    // Both settings groups ride the same write: someone who came here only to
+    // turn a toggle off must not have to type a key to make it stick.
+    const update = await persistCredentials(chrome.storage.local, entries, {
+      ...collectRediscoverySettings(),
+      ...collectLocalSettings()
+    });
+    const saved = entries.filter(entry => Object.hasOwn(update, entry.key));
+    for (const { key, field, secret, value } of saved) {
+      const input = els[field];
+      if (secret && input.value === value) input.value = '';
+      if (secret) input.placeholder = 'Saved — leave blank to keep';
+      const badge = document.getElementById(input.id + '-status');
+      if (badge) badge.textContent = credentialState(update[key], secret, key);
     }
+    const message = saved.length ? saved.map(entry => entry.label).join(', ') + ' saved locally.' : 'Settings saved. Existing keys kept.';
+    if (feedback) feedback.textContent = message;
+    renderEvent(panelEvent('note', message, 'Saved key fields stay blank to protect your credentials.'));
+    setStatus('saved', 'ok');
+  } catch (error) {
+    if (feedback) feedback.textContent = error.message;
+    setStatus('save needs attention', 'bad');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save changes';
   }
-
-  // Settings are saved on every submit, credentials or not: a user who only
-  // came here to turn rediscovery off must not have to type a key to do it.
-  await saveRediscoverySettings();
-  await saveLocalSettings();
-
-  if (!saved.length) {
-    els.keyForm.hidden = true;
-    setStatus("settings saved", "ok");
-    return;
-  }
-
-  // Stored in this browser's extension storage, never in the repo.
-  await chrome.storage.local.set(update);
-
-  // Secrets are cleared from the DOM; the rest stay visible for checking.
-  for (const { field, secret } of CREDENTIALS) {
-    if (secret && els[field]) els[field].value = "";
-  }
-  els.keyForm.hidden = true;
-
-  renderEvent(panelEvent("note", saved.join(", ") + " saved.", "Stored in this browser only."));
-  setStatus("keys saved", "ok");
 });
 
 /** Vault and folder for the Obsidian export, if the user set them. */
@@ -887,10 +894,10 @@ async function handshake() {
   try {
     const reply = await request(MSG.PING, {});
     if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
-    // Where the model runs is worth a permanent place in the status line: it is
-    // the difference between this reading leaving the machine and not.
+    // Kept short, but where the model runs stays in it: that is the difference
+    // between this reading leaving the machine and not.
     const where = reply.provider === "local" ? " · local model" : reply.provider === "cloud" ? " · openrouter" : "";
-    setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions${where}`, "ok");
+    setStatus(`${reply.tabCount} tabs · ${reply.windowCount} windows${where}`, "ok");
     if (!reply.hasKey) showKeyForm();
   } catch (err) {
     setStatus("worker unreachable", "bad");

@@ -105,27 +105,23 @@
           <input id="include-history" type="checkbox" />
           Include recent history
         </label>
-        <label class="option" for="read-limit">
-          Page budget
-          <select id="read-limit">
-            <option value="8" selected>8 &mdash; selective</option>
-            <option value="24">24 &mdash; expanded</option>
-            <option value="48">48 &mdash; thorough</option>
-          </select>
-        </label>
       </div>
       <p class="hint">
-        History checks recent visits and reopens selected pages. The budget caps how
-        many pages a run may read, across tabs and history alike.
+        Finds useful sources in your open tabs. Include history to also check recent visits.
       </p>
 
-      <form id="key-form" hidden>
+      <form id="key-form" hidden novalidate>
+        <div class="key-save-bar">
+          <button id="save-key" type="submit">Save changes</button>
+          <p id="key-feedback" class="hint" role="status" aria-live="polite">Paste a key, then save. Blank fields keep saved keys.</p>
+        </div>
         <section class="key-group">
           <h2 class="key-group-head">
             <svg class="icon" aria-hidden="true"><use href="#i-key" /></svg>
             Agent
           </h2>
           <label for="api-key">
+            <span id="api-key-status" class="credential-status">Not saved</span>
             OpenRouter key &mdash; required to run the agent. Stored in this browser only.
           </label>
           <input
@@ -137,6 +133,7 @@
           />
 
           <label for="exa-key">
+            <span id="exa-key-status" class="credential-status">Not saved</span>
             Exa key &mdash; optional. Lets the agent search the web when your tabs
             do not cover the goal.
           </label>
@@ -155,6 +152,7 @@
             Notion
           </h2>
           <label for="notion-token">
+            <span id="notion-token-status" class="credential-status">Not saved</span>
             Integration token &mdash; create an internal integration at
             notion.so/my-integrations, then share a page with it.
           </label>
@@ -245,9 +243,6 @@
           </div>
         </section>
 
-        <div class="key-actions">
-          <button id="save-key" type="submit">save</button>
-        </div>
       </form>
     </header>
 

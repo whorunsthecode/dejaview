@@ -7,16 +7,70 @@
   </head>
   <body>
     <header>
-      <h1>dejavu</h1>
+      <div class="title-row">
+        <h1>dejavu</h1>
+        <button id="keys-toggle" type="button" title="API keys">keys</button>
+        <p id="status" class="pending">starting&hellip;</p>
+      </div>
       <form id="run-form">
-        <input id="goal" type="text" placeholder="what are you trying to do?" autocomplete="off" />
-        <button type="submit">run</button>
+        <input
+          id="goal"
+          type="text"
+          placeholder="what are you trying to do?"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="run" type="submit">run</button>
       </form>
-      <p id="status" class="pending">starting…</p>
+
+      <form id="key-form" hidden>
+        <label for="api-key">
+          OpenRouter key &mdash; required to run the agent. Stored in this browser only.
+        </label>
+        <input
+          id="api-key"
+          type="password"
+          placeholder="sk-or-..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <label for="exa-key">
+          Exa key &mdash; optional. Lets the agent search the web when your tabs
+          do not cover the goal.
+        </label>
+        <div class="key-row">
+          <input
+            id="exa-key"
+            type="password"
+            placeholder="exa key"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="save-key" type="submit">save</button>
+        </div>
+      </form>
     </header>
+
     <main>
+      <p id="empty">
+        dejavu reads the tabs you already have open, and turns what you have
+        already read into a skill your coding agent can run later.
+      </p>
       <ol id="trace"></ol>
     </main>
+
+    <section id="result" hidden>
+      <div class="result-head">
+        <div class="result-meta">
+          <strong id="skill-name">skill.md</strong>
+          <span id="skill-desc"></span>
+        </div>
+        <button id="download" type="button">download</button>
+      </div>
+      <pre id="skill-body"></pre>
+    </section>
+
     <script type="module" src="panel.js"></script>
   </body>
 </html>

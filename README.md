@@ -25,8 +25,9 @@ Reads `shared/stubs.json` and prints a fake trace to stdout. Proves the plumbing
 
 ## Ownership
 
-- `extension/` — Rohan. Manifest, tab enumeration, first-visit dating, content script,
-  Readability extraction, in-page highlighting, side panel, download.
+- `extension/` — Rohan. Manifest, tab enumeration, first-visit dating, on-demand
+  Readability extraction, in-page highlighting, side panel, download. Both page-side
+  jobs run through `chrome.scripting`, so there is no standing content script.
 - `agent/` — Karmen. Agentic loop, tool definitions, triage prompt, passage selection,
   skill conversion, loose-match mode, gap-fill search, deterministic fallback.
 - `shared/` — neither side edits without saying so. Data contract lives here.

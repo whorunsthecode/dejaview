@@ -7,7 +7,7 @@
  *   PING       panel  -> worker    liveness handshake; replies
  *   RUN        panel  -> worker    start a run; replies with an ack
  *   TRACE      worker -> panel     one trace event; no reply
- *   HIGHLIGHT  worker -> content   highlight a passage in a page; replies
+ *   HIGHLIGHT  panel  -> worker    { tabId, quotes }; replies with match counts
  *   SKILL      worker -> panel     the finished SKILL.md; no reply
  */
 

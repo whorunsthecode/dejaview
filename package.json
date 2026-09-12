@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "run:local": "node agent/run-local.js",
-    "try:exa": "node agent/try-exa.js"
+    "try:exa": "node agent/try-exa.js",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "jsdom": "^30.0.1"
   }
 }

@@ -9,7 +9,6 @@
     <header>
       <div class="title-row">
         <h1>dejavu</h1>
-        <button id="keys-toggle" type="button" title="API keys">keys</button>
         <p id="status" class="pending">starting&hellip;</p>
       </div>
       <form id="run-form">
@@ -23,27 +22,22 @@
         <button id="run" type="submit">run</button>
       </form>
 
+      <label class="history-option" for="include-history">
+        <input id="include-history" type="checkbox" />
+        Include recent history
+      </label>
+      <p class="history-help">Checks recent visits and reopens selected pages for reading and highlights.</p>
+
       <form id="key-form" hidden>
         <label for="api-key">
-          OpenRouter key &mdash; required to run the agent. Stored in this browser only.
-        </label>
-        <input
-          id="api-key"
-          type="password"
-          placeholder="sk-or-..."
-          autocomplete="off"
-          spellcheck="false"
-        />
-
-        <label for="exa-key">
-          Exa key &mdash; optional. Lets the agent search the web when your tabs
-          do not cover the goal.
+          An OpenRouter key is needed to run the agent. It is stored in this
+          browser only.
         </label>
         <div class="key-row">
           <input
-            id="exa-key"
+            id="api-key"
             type="password"
-            placeholder="exa key"
+            placeholder="sk-or-..."
             autocomplete="off"
             spellcheck="false"
           />

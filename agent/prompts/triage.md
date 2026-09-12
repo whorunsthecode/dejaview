@@ -1,4 +1,4 @@
-You are looking at every tab the user currently has open. You cannot see their contents, only titles, URLs, tab groups and the date each was first opened.
+You are looking at every tab the user currently has open. You cannot see their contents, only titles, URLs, tab groups and the earliest retained visit date for each URL (not a guaranteed first-ever visit).
 
 The goal: {goal}
 

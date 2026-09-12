@@ -22,7 +22,7 @@ Write a SKILL.md with this structure:
   - Steps, in order, written as instructions to an agent, not as notes to a human. Each
     step says what to do, not what someone wrote about doing it.
   - Gotchas: the things that will silently fail, drawn from the passages.
-  - Sources: each URL with the date the user first opened that tab.
+  - Sources: each URL with its provenance (open tab, reopened history, or web search) and earliest recorded visit date when available.
 
 HARD RULES
 - This is a procedure, not a summary. If you find yourself writing "the article explains

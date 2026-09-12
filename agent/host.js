@@ -1,9 +1,11 @@
-import { isTraceEvent } from '../shared/types.js';
+import { isTab, isTraceEvent } from '../shared/types.js';
 import { toolSchemas, validateArguments, createTools } from './tools.js';
 import { requestJSON } from './transport.js';
 import { runTriage } from './triage.js';
 import { selectPassages } from './passages.js';
 import { assessGaps } from './gaps.js';
+import { selectHistory } from './history.js';
+import { HISTORY_LIMIT, historyUrl, historyMetadata } from '../shared/history.js';
 
 export const DEFAULT_MODEL = 'google/gemini-2.5-flash';
 export const MAX_READS = 8;
@@ -46,7 +48,8 @@ export function createOpenRouterModel({ env = {}, fetchImpl = globalThis.fetch, 
  * @returns {Promise<{status:string,skill:object|null,reads:number,iterations:number,messages:Array,triage:object|null}>}
  */
 async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env ?? {},
-  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {} }) {
+  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {}, includeHistory = false, historySource = null, historyModel = model }) {
+  if (typeof includeHistory !== 'boolean') throw new Error('includeHistory must be a boolean');
   if (!['tight', 'loose'].includes(mode)) throw new Error('mode must be tight or loose');
   if (typeof onTrace !== 'function') throw new Error('onTrace callback is required');
   const emit = (kind, label, detail = '', ref = null) => {
@@ -62,15 +65,17 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   const invalidAttempts = new Map();
   const pendingTabs = new Map();
   let passages = [];
-  const passageSelections = [];
+  const passageSelections = [], historySelections = [];
+  const historyTabs = new Map();
+  let historyAttempted = false;
   const finish = (status, label) => {
     emit('done', label);
-    return { status, skill: tools.getSkill(), reads, iterations, messages, triage, passages, passageSelections, searches, coverageAssessments, mode };
+    return { status, skill: tools.getSkill(), reads, iterations, messages, triage, passages, passageSelections, searches, coverageAssessments, historySelections, mode };
   };
   let prompt;
   try { prompt = await loadSystemPrompt(); }
   catch (error) { emit('error', error.message); return finish('error', 'Stopped: system prompt unavailable.'); }
-  messages.push({ role: 'system', content: prompt }, { role: 'user', content: goal }, { role: 'user', content: `Run mode: ${mode}. The host performs passage selection and coverage assessment before continuation. Web searches are executed by that coverage step only. Preserve source:web and firstVisit:null on web citations; never describe them as open tabs.` });
+  messages.push({ role: 'system', content: prompt }, { role: 'user', content: goal }, { role: 'user', content: `Run mode: ${mode}. The host performs passage selection and coverage assessment before continuation. Web searches are executed by that coverage step only. Preserve source:web and firstVisit:null on web citations. Preserve source:history on reopened history pages. Dates are earliest retained visits, never guaranteed first-ever visits. Never describe web or history sources as tabs that were already open.` });
   emit('plan', `Goal: ${goal}`);
   // Enumerate once before the first model turn. Feed triage an explicit metadata
   // projection, not the full list result (which may include other shared fields).
@@ -85,6 +90,74 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
     return finish('error', 'Stopped before reading any tabs.');
   }
   emit('result', `Listed ${tabs.length} tabs for triage`);
+  async function discoverHistory(query) {
+    if (!includeHistory || historyAttempted) return false;
+    historyAttempted = true;
+    if (reads >= MAX_READS || iterations >= MAX_ITERATIONS - 1) {
+      emit('note', 'History skipped: no read or model budget remains.'); return false;
+    }
+    if (!historySource?.search || !historySource?.open) {
+      emit('note', 'History search unavailable in this host.'); return false;
+    }
+    emit('tool', 'Searching recent history', query);
+    journal('tool_call', { name: 'history_search', args: { query, limit: HISTORY_LIMIT } });
+    let candidates;
+    try {
+      const found = await historySource.search({ query, mode, excludeUrls: tabs.map(t => t.url), limit: HISTORY_LIMIT });
+      if (!Array.isArray(found)) throw new Error('History source must return an array');
+      const seenUrls = new Set(tabs.map(t => historyUrl(t.url))), seenIds = new Set();
+      candidates = [];
+      for (const raw of found) {
+        const item = historyMetadata(raw), key = historyUrl(item.url);
+        if (seenUrls.has(key) || seenIds.has(item.historyId)) continue;
+        seenUrls.add(key); seenIds.add(item.historyId); candidates.push(item);
+        if (candidates.length === HISTORY_LIMIT) break;
+      }
+      journal('tool_result', { name: 'history_search', result: candidates });
+    } catch (error) {
+      journal('tool_result', { name: 'history_search', result: { error: { message: error.message } } });
+      emit('result', `History search unavailable: ${error.message}`); return false;
+    }
+    emit('result', `Found ${candidates.length} history candidates (metadata only)`);
+    let selection;
+    try {
+      selection = await selectHistory({ goal, query, mode, candidates, cap: MAX_READS - reads,
+        model: historyModel, maxModelCalls: Math.min(2, MAX_ITERATIONS - iterations - 1) });
+      iterations += selection.modelCalls; historySelections.push(selection);
+    } catch (error) {
+      iterations += error.modelCalls ?? 1;
+      emit('note', `History selection unavailable: ${error.message}`); return false;
+    }
+    if (selection.note) emit('plan', selection.note);
+    if (selection.truncated) emit('note', `History reads capped to ${selection.open.length} remaining slots.`);
+    for (const choice of selection.open) {
+      if (reads >= MAX_READS) break;
+      const candidate = candidates.find(c => c.historyId === choice.historyId);
+      emit('tool', `Reopening history page: ${candidate.title}`, choice.why);
+      journal('tool_call', { name: 'history_read', args: { historyId: candidate.historyId, url: candidate.url } });
+      reads++;
+      let result, tab, reopenedMetadata;
+      try {
+        tab = await historySource.open(candidate); isTab(tab);
+        if (!Number.isInteger(tab.id) || tab.id < 0 || historyUrl(tab.url) !== historyUrl(candidate.url)) throw new Error('History source returned an invalid page identity');
+        if (tabs.some(t => t.id === tab.id && historyUrl(t.url) !== historyUrl(tab.url))) throw new Error('History source reused another tab ID');
+        const { text, ...metadata } = tab;
+        reopenedMetadata = metadata;
+        if (!tabs.some(t => t.id === tab.id)) tabs.push(metadata);
+        historyTabs.set(tab.id, candidate);
+        result = await tools.handlers.read_tab({ id: tab.id });
+        const snapshot = { ...metadata, ...result, firstVisit: candidate.firstVisit };
+        pendingTabs.set(tab.id, snapshot); allReadTabs.set(tab.id, snapshot); coveragePending = true;
+        messages.push({ role: 'user', content: `Reopened history source: ${JSON.stringify({ ...candidate, tabId: tab.id, source: 'history' })}` },
+          { role: 'assistant', content: null, tool_calls: [{ id: `history-read-${reads}`, type: 'function', function: { name: 'read_tab', arguments: JSON.stringify({ id: tab.id }) } }] },
+          { role: 'tool', tool_call_id: `history-read-${reads}`, content: JSON.stringify(result) });
+      } catch (error) { result = { error: { message: error.message } }; }
+      journal('tool_result', { name: 'history_read', result, ...(reopenedMetadata ? { tab: reopenedMetadata } : {}) });
+      emit('result', result.error ? `History page unavailable: ${result.error.message}` : `History page ${tab.id}: ${result.textStatus}, ${result.text?.length ?? 0} characters`);
+    }
+    return pendingTabs.size > 0;
+  }
+
   try {
     triage = await runTriage({ goal, tabs, cap: MAX_READS, model: triageModel,
       onTrace: event => { isTraceEvent(event); onTrace(event); } });
@@ -122,7 +195,11 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         return finish('error', 'Stopped: passage selection failed.');
       }
       passageSelections.push(selection);
-      const enriched = selection.passages.map(p => ({ ...p, source: 'tab', url: allReadTabs.get(p.tabId)?.url, firstVisit: allReadTabs.get(p.tabId)?.firstVisit ?? null }));
+      const enriched = selection.passages.map(p => {
+        const history = historyTabs.get(p.tabId), tab = allReadTabs.get(p.tabId);
+        return { ...p, source: history ? 'history' : 'tab', url: tab?.url, firstVisit: tab?.firstVisit ?? null,
+          ...(history ? { historyId: history.historyId, lastVisit: history.lastVisit } : {}) };
+      });
       passages = (mode === 'loose' ? [] : passages.filter(passage => !pendingTabs.has(passage.tabId))).concat(enriched);
       if (mode === 'loose') {
         if (selection.none) emit('note', selection.none);
@@ -138,6 +215,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
       }
       pendingTabs.clear();
     }
+    if (!initialReads && mode === 'loose' && await discoverHistory(goal)) continue;
     if (!initialReads && stopAfterPassages) return finish('passages', 'Passage selection and verification completed.');
     if (!initialReads && mode === 'tight' && coveragePending && searches < MAX_SEARCHES && iterations < MAX_ITERATIONS) {
       let coverage;
@@ -149,6 +227,10 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         emit('error', error.message); return finish('error', 'Stopped: coverage assessment failed.');
       }
       coverageAssessments.push(coverage);
+      if (includeHistory && !historyAttempted && coverage.gaps.length) {
+        emit('note', `${coverage.covered} Missing: ${coverage.gaps.map(g => g.missing).join('; ')}`);
+        if (await discoverHistory(coverage.gaps.map(g => g.query).join(' '))) continue;
+      }
       const remaining = MAX_SEARCHES - searches;
       if (coverage.gaps.length > remaining) emit('note', `Search cap: considering only ${remaining} remaining gaps.`);
       const fresh = coverage.gaps.filter((gap, i, list) => !attemptedQueries.includes(gap.query) && list.findIndex(g => g.query === gap.query) === i).slice(0, remaining);
@@ -228,7 +310,12 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         if (name === 'write_skill') {
           // Preserve provenance at the host boundary; the writer/Markdown format is unchanged.
           const webUrls = new Set(passages.filter(p => p.source === 'web').map(p => p.url));
-          args = { ...args, sources: args.sources.map(source => webUrls.has(source.url) ? { ...source, source: 'web', firstVisit: null } : source) };
+          const historyByUrl = new Map(passages.filter(p => p.source === 'history').map(p => [p.url, p]));
+          args = { ...args, sources: args.sources.map(source => {
+            const history = historyByUrl.get(source.url);
+            if (history) return { ...source, source: 'history', historyId: history.historyId, firstVisit: history.firstVisit, lastVisit: history.lastVisit };
+            return webUrls.has(source.url) ? { ...source, source: 'web', firstVisit: null } : source;
+          }) };
         }
         result = await tools.handlers[name](args);
         if (name === 'read_tab') {
@@ -304,16 +391,16 @@ export async function runAgent(options) {
     return response;
   };
   const result = await runLive({ ...options, env, mode: options.mode ?? env.AGENT_MODE ?? 'tight', journal,
-    model: wrap(baseModel), triageModel: wrap(options.triageModel ?? baseModel), passageModel: wrap(options.passageModel ?? baseModel), gapModel: wrap(options.gapModel ?? baseModel),
+    model: wrap(baseModel), triageModel: wrap(options.triageModel ?? baseModel), passageModel: wrap(options.passageModel ?? baseModel), gapModel: wrap(options.gapModel ?? baseModel), historyModel: wrap(options.historyModel ?? baseModel),
     onTrace(event) { journal('trace', event); return deliverTrace(event); },
     onHighlight(payload) { journal('highlight', payload); return deliverHighlight(payload); }
   });
   if (recording) {
     // A failed/partial run must never replace a usable golden capture.
     if (result.status !== 'complete') throw new Error(`Not recording golden fixture: run ended ${result.status}. Existing fixture preserved.`);
-    const metadata = events.find(e => e.kind === 'tool_result' && e.data.name === 'list_tabs' && Array.isArray(e.data.result))?.data.result ?? [];
+    const metadata = events.flatMap(e => e.kind === 'tool_result' && !e.data.result?.error ? (e.data.name === 'list_tabs' && Array.isArray(e.data.result) ? e.data.result : e.data.name === 'history_read' && e.data.tab ? [e.data.tab] : []) : []);
     const ids = new Set(events.filter(e => e.kind === 'highlight').map(e => e.data.tabId));
-    for (const e of events) if (e.kind === 'tool_result' && e.data.name === 'read_tab' && !e.data.result.error) ids.add(e.data.result.id);
+    for (const e of events) if (e.kind === 'tool_result' && ['read_tab', 'history_read'].includes(e.data.name) && !e.data.result.error) ids.add(e.data.result.id);
     const referencedTabs = [...ids].map(id => {
       const tab = metadata.find(tab => tab.id === id);
       if (!tab) throw new Error(`Cannot record missing tab metadata for ${id}`);

@@ -121,19 +121,15 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 #key-form label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 7px;
   font-size: 11px;
   line-height: 1.45;
   color: var(--ink-soft);
 }
 
-#key-form label + input { margin-bottom: 9px; }
-
 .key-row { display: flex; gap: 6px; }
 
-#api-key,
-#exa-key {
-  width: 100%;
+#api-key {
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
@@ -143,26 +139,7 @@ button:disabled { opacity: 0.5; cursor: default; }
   color: var(--ink);
   background: var(--surface);
 }
-#api-key:focus,
-#exa-key:focus { outline: none; border-color: var(--ink-soft); }
-
-#key-form label + input { margin-bottom: 9px; }
-.key-row #exa-key { margin-bottom: 0; }
-
-/* The keys toggle sits between the title and the status, so it stays reachable
-   once a key is saved and the prompt is gone. */
-#keys-toggle {
-  margin-right: auto;
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 10px;
-  font-variant: small-caps;
-  letter-spacing: 0.4px;
-  color: var(--ink-soft);
-  background: transparent;
-}
-#keys-toggle:hover { color: var(--ink); border-color: var(--ink-soft); }
+#api-key:focus { outline: none; border-color: var(--ink-soft); }
 
 /* ---- trace ----------------------------------------------------------- */
 
@@ -304,3 +281,7 @@ main {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.history-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; }
+.history-option input { width: auto; margin: 0; }
+.history-help { font-size: 11px; line-height: 1.5; opacity: .7; margin: 5px 0 0; }

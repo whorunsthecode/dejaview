@@ -354,19 +354,47 @@ server's base URL, so this is not tied to one product:
 | [LM Studio](https://lmstudio.ai) | `http://localhost:1234/v1` | turn on **Enable CORS** in the server tab |
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) | `http://localhost:8080/v1` | nothing; it allows every origin |
 
-With Ollama, which is the shortest path:
+With Ollama, which is the shortest path. Pull a model once:
 
-```bash
+```
 ollama pull qwen2.5:7b
-OLLAMA_ORIGINS=chrome-extension://* ollama serve
 ```
 
-`OLLAMA_ORIGINS` is the step that matters. Ollama checks the `Origin` header and
-rejects a `chrome-extension://` caller by default, which looks exactly like the
-server being down. The **keys** form prints your install's own extension id so
-you can narrow that wildcard, and the **test the connection** button tells you
+Then allow this extension's origin. **This is the step that matters** — Ollama
+checks the `Origin` header and answers a `chrome-extension://` caller with
+`403 Forbidden` by default, which from the browser side looks exactly like the
+server being down.
+
+**Windows.** The Ollama desktop app is already running in the background, so
+`ollama serve` in a terminal will not be what answers on port 11434. Set the
+variable for your account and restart the app:
+
+```
+setx OLLAMA_ORIGINS "chrome-extension://*"
+```
+
+then quit Ollama from the system tray and open it again. `setx` writes the value
+for *future* processes only: a terminal or an app that was already open will not
+see it, which is the usual reason this appears not to have worked.
+
+**macOS and Linux.** Quit Ollama first if it is running, then either:
+
+```bash
+OLLAMA_ORIGINS='chrome-extension://*' ollama serve
+```
+
+or, for the macOS app, `launchctl setenv OLLAMA_ORIGINS 'chrome-extension://*'`
+and restart it.
+
+The **keys** form prints your install's own extension id so you can narrow that
+wildcard to just this extension, and the **test the connection** button tells you
 which of the two problems you have, including whether the model you named is
 actually pulled.
+
+One thing that looks like a hang and is not: the first call after Ollama starts
+has to load the model into memory. On a 7B that measured about 40 seconds here,
+against roughly two for the calls after it. That is why the timeout on this path
+is three minutes rather than the thirty seconds the hosted path uses.
 
 ### What works well, and what is best-effort
 

@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "run:local": "node agent/run-local.js",
-    "test": "node --test"
+    "try:exa": "node agent/try-exa.js"
   }
 }

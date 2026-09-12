@@ -39,6 +39,7 @@ test("every message type is documented", () => {
   }
 });
 
+<<<<<<< HEAD
 test("the privacy section states the default and both opt-ins", () => {
   // The original promise was that history is read only to date open tabs. Two
   // features now go further, so the claim had to change rather than be quietly
@@ -65,6 +66,13 @@ test("both history readers are opt-in in the code, not just in the README", () =
   // The habits page reads history from a click handler, never on load.
   assert.match(viz, /els\.loadHistory\.addEventListener\("click", renderHistory\)/);
   assert.doesNotMatch(viz, /^await renderHistory\(\)/m);
+=======
+test("privacy documents optional history discovery and default open-tab dating", () => {
+  assert.match(README, /By default, history is used only to date already-open tabs/);
+  assert.match(README, /Include recent\nhistory/);
+  assert.match(README, /Only selected pages are reopened and read/);
+  assert.match(README, /no background history collection/);
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 });
 
 test("the stated Chrome floor matches the manifest", () => {

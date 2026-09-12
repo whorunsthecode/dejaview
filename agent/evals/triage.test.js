@@ -84,7 +84,7 @@ test('host triage is the first model turn; selected reads carry reasons and shar
   const result = await runAgent({ gapModel: async () => ({ role: 'assistant', content: JSON.stringify({ covered: 'Isolated triage test.', gaps: [] }) }), goal: GOAL, tabSource: {
     list: async () => tabs,
     read: async id => { assert.equal(phases[0], 'triage'); readIds.push(id); return { id, text:null, textStatus:'blocked' }; }
-  }, model: async ({ phase, messages }) => {
+  }, maxReads: 8, model: async ({ phase, messages }) => {
     phases.push(phase ?? 'tools');
     if (phase === 'triage') return response(decision(tabs.filter(t => ![487,488].includes(t.id)).slice(0, 10).map(t => t.id)));
     if (++toolTurn === 1) return { role:'assistant', content:null, tool_calls:[{id:'ninth',type:'function',function:{name:'read_tab',arguments:'{"id":499}'}}] };

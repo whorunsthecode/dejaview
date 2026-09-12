@@ -10,7 +10,10 @@
 import { MSG, on, request } from "../../shared/messages.js";
 import { isTraceEvent } from "../../shared/types.js";
 import { skillFilename, skillDescription, replayDelay, elide } from "./format.js";
+<<<<<<< HEAD
 import { obsidianTarget } from "./export.js";
+=======
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 
 const els = {
   trace: document.getElementById("trace"),
@@ -20,11 +23,16 @@ const els = {
   goal: document.getElementById("goal"),
   run: document.getElementById("run"),
   includeHistory: document.getElementById("include-history"),
+<<<<<<< HEAD
+=======
+  readLimit: document.getElementById("read-limit"),
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   result: document.getElementById("result"),
   skillName: document.getElementById("skill-name"),
   skillDesc: document.getElementById("skill-desc"),
   skillBody: document.getElementById("skill-body"),
   download: document.getElementById("download"),
+<<<<<<< HEAD
   obsidian: document.getElementById("obsidian"),
   copy: document.getElementById("copy"),
   keyForm: document.getElementById("key-form"),
@@ -32,6 +40,10 @@ const els = {
   exaKey: document.getElementById("exa-key"),
   keysToggle: document.getElementById("keys-toggle"),
   habits: document.getElementById("habits")
+=======
+  keyForm: document.getElementById("key-form"),
+  apiKey: document.getElementById("api-key")
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 };
 
 /** Resolved tab titles, keyed by tab id, so a `ref` can name its source. */
@@ -135,6 +147,11 @@ function setRunning(next) {
   running = next;
   els.goal.disabled = next;
   els.run.disabled = next;
+<<<<<<< HEAD
+=======
+  els.includeHistory.disabled = next;
+  els.readLimit.disabled = next;
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   els.run.textContent = next ? "running…" : "run";
 }
 
@@ -157,12 +174,16 @@ function hideSkill() {
 
 els.download.addEventListener("click", () => {
   if (!currentSkill) return;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   const blob = new Blob([currentSkill], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = skillFilename(currentSkill);
+<<<<<<< HEAD
 
   // The anchor has to be in the document for click() to start a download in
   // every Chrome build; a detached one silently does nothing on some of them.
@@ -238,6 +259,17 @@ els.habits?.addEventListener("click", () => {
 // The agent host sends TRACE as { event }, so the envelope is unwrapped here.
 on(MSG.TRACE, (payload) => {
   try {
+=======
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+});
+
+// ---- incoming ---------------------------------------------------------
+
+// The agent host sends TRACE as { event }, so the envelope is unwrapped here.
+on(MSG.TRACE, (payload) => {
+  try {
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
     const ev = payload.event;
     renderEvent(ev);
     if (ev.kind === "done" || ev.kind === "error") setRunning(false);
@@ -265,6 +297,7 @@ els.form.addEventListener("submit", async (e) => {
   clearTrace();
   hideSkill();
   setRunning(true);
+<<<<<<< HEAD
   renderEvent(
     panelEvent(
       "plan",
@@ -277,6 +310,12 @@ els.form.addEventListener("submit", async (e) => {
 
   try {
     const reply = await request(MSG.RUN, { goal, includeHistory });
+=======
+  renderEvent(panelEvent("plan", "Goal: " + goal, els.includeHistory.checked ? "Reading open tabs, with recent history available if useful." : "Reading the tabs you already have open."));
+
+  try {
+    const reply = await request(MSG.RUN, { goal, includeHistory: els.includeHistory.checked, maxReads: Number(els.readLimit.value) });
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 
     if (!reply?.ok) {
       renderEvent(panelEvent("error", "The worker rejected the run.", reply?.error ?? "no reason given"));
@@ -321,8 +360,13 @@ els.form.addEventListener("submit", async (e) => {
 });
 
 /**
+<<<<<<< HEAD
  * Replay the scripted run. The status line says so plainly — the trace must
  * never imply work that did not happen.
+=======
+ * Replay the scripted run until the agent loop is connected. The status line
+ * says so plainly — the trace should never imply work that did not happen.
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
  */
 async function replayScriptedRun() {
   setStatus("scripted run", "pending");
@@ -340,6 +384,7 @@ async function replayScriptedRun() {
   showSkill(markdown);
 }
 
+<<<<<<< HEAD
 // ---- credentials ------------------------------------------------------
 
 /**
@@ -398,6 +443,30 @@ els.keyForm.addEventListener("submit", async (e) => {
 
 // ---- boot -------------------------------------------------------------
 
+=======
+// ---- boot -------------------------------------------------------------
+
+// ---- credentials ------------------------------------------------------
+
+function showKeyForm() {
+  els.keyForm.hidden = false;
+  els.apiKey.focus();
+}
+
+els.keyForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const key = els.apiKey.value.trim();
+  if (!key) return;
+
+  // Stored in this browser's extension storage, never in the repo.
+  await chrome.storage.local.set({ OPENROUTER_API_KEY: key });
+  els.apiKey.value = "";
+  els.keyForm.hidden = true;
+  renderEvent(panelEvent("note", "Key saved. Run again for a real pass over your tabs."));
+  setStatus("key saved", "ok");
+});
+
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
 /** Preload stub tab titles so a scripted run's refs resolve to real titles. */
 async function preloadStubTitles() {
   try {
@@ -419,8 +488,13 @@ async function handshake() {
   try {
     const reply = await request(MSG.PING, {});
     if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
+<<<<<<< HEAD
     setStatus(reply.tabCount + " tabs · " + reply.windowCount + " windows", "ok");
     if (!reply.hasKey) showKeyForm({ hasKey: false, hasExa: reply.hasExa });
+=======
+    setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions`, "ok");
+    if (!reply.hasKey) showKeyForm();
+>>>>>>> 16e04d06a6175aff21d748344d442ea25c965dfa
   } catch (err) {
     setStatus("worker unreachable", "bad");
     renderEvent(panelEvent("error", "Could not reach the service worker.", err.message));

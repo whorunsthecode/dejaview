@@ -18,13 +18,13 @@ The host accepts `includeHistory: true` plus an injected HistorySource:
 - `open(candidate)` reuses or opens the selected URL and returns real Tab metadata
   once loaded. Text extraction is still performed by the existing read_tab handler.
 
-The browser implementation lives in extension/history.js. It queries at most 2,000
+The browser implementation lives in extension/history.js. It queries at most 10,000
 URLs from the retained 90-day window, excludes non-HTTP(S) pages and already-open
 URLs, deduplicates fragments/tracking parameters while preserving route fragments
-and version queries, then shortlists at most 50. Ranking uses title/URL keyword
+and version queries, then shortlists at most 200. Ranking uses title/URL keyword
 matches, visits and recency. Loose mode reserves half the shortlist for older
 retained pages; the model still decides whether any have a useful mechanism.
-This bounded search can miss relevant older pages when more than 2,000 URLs exist.
+This bounded search can miss relevant older pages when more than 10,000 URLs exist.
 
 Only the shortlist is sent to the history-selection model, without page text.
 Earliest retained dates are queried for those shortlisted URLs only. Null stays
@@ -40,8 +40,11 @@ selection → reopen/read/verify → reassess coverage → Exa only for remainin
 Loose: open tabs → initial rhymes → one history shortlist → read selected pages →
 reselect across all read text, keeping at most three verified rhymes total.
 
-One history discovery pass per run. Eight reads total across existing and reopened
-pages, including failed reopen attempts. No extra model tool is added; history is
+One history discovery pass per run. Eight reads by default across existing and reopened
+pages, including failed reopen attempts. The panel offers 24 and 48; the host accepts
+`maxReads` from 1 to 48, and Node accepts `READ_LIMIT`. With history enabled and a
+budget above eight, initial triage reserves one third (at most eight) for history.
+No extra model tool is added; history is
 an injected host step. History model turns count toward the existing 20-turn limit.
 One JSON/schema correction is permitted; remaining invalid output becomes a visible
 note and the run continues. Budget exhaustion skips history with a visible note.
@@ -65,7 +68,11 @@ node --test agent/tests/*.test.js agent/evals/*.test.js test/*.test.js
 node --env-file=.env --test agent/evals/history.test.js
 ```
 
-Full deterministic regression: 149 passed, 12 live tests skipped. Live history
+Full deterministic regression after capacity changes: 156 passed, 12 live tests skipped.
+Scale fixtures cover 500 open tabs, 10,000 history URLs, and full tight runs at
+8, 24 and 48 reads with verification batches of eight. These use scripted models;
+they prove bounds and data flow, not semantic recall. No live scale run was made.
+Previously completed live history
 acceptance: 3 combined reads, 2 verified history passages, zero Exa searches after
 reassessment. That test uses real OpenRouter decisions and injected fake browser
 history, not access to the user's personal Chrome history.

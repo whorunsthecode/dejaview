@@ -29,6 +29,14 @@
         Include recent history
       </label>
       <p class="history-help">Checks recent visits and reopens selected pages for reading and highlights.</p>
+      <label class="history-option" for="read-limit">Page budget
+        <select id="read-limit">
+          <option value="8" selected>8 — selective</option>
+          <option value="24">24 — expanded</option>
+          <option value="48">48 — thorough</option>
+        </select>
+      </label>
+      <p class="history-help">Maximum pages to read, shared across tabs and history. Larger runs take longer and use more API credit.</p>
 
       <form id="key-form" hidden>
         <label for="api-key">

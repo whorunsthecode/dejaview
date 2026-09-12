@@ -44,7 +44,7 @@ visited recently but no longer have open. See [agent/HISTORY.md](agent/HISTORY.m
 
 ## Where the skill goes
 
-The result panel offers three targets:
+The result panel offers five targets:
 
 - **obsidian** — opens the note in your vault over the `obsidian://` URI scheme. No
   server, no account, no OAuth. Windows truncates a protocol URL near 2048 characters,
@@ -52,8 +52,34 @@ The result panel offers three targets:
   correctly named empty note. Rather than risk that, anything over 2000 characters — which
   is most skills — is put on your clipboard and the note opened ready for **Ctrl+V**.
   Only a short skill travels inside the URL.
-- **copy** — the markdown on your clipboard, for Google Docs, Notion, or a PR body.
+- **notion** — creates a real Notion page under a parent you choose. Notion has no
+  markdown endpoint, so the skill is parsed into typed blocks: headings, numbered steps,
+  code, quotes. Frontmatter becomes a YAML code block rather than stray prose.
+- **docs** — creates a Google Doc. Drive converts the markdown on upload, so headings and
+  lists arrive as real formatting rather than a wall of text.
+- **copy** — the markdown on your clipboard, for anywhere else.
 - **download** — a correctly named `.md`, taken from the skill's own frontmatter.
+
+Each target is optional and needs its own credential, entered once under **keys**. The
+setup costs differ a lot, so pick by how much you want to spend:
+
+| Target | Setup | Where it goes |
+| --- | --- | --- |
+| Obsidian | none | your vault |
+| Notion | make an integration, share one page with it | a page under that parent |
+| Google Docs | a Google Cloud OAuth client id | your Drive |
+
+**Notion.** Create an internal integration at
+[notion.so/my-integrations](https://www.notion.so/my-integrations), copy its token, then
+open the Notion page you want skills filed under and share it with that integration.
+Paste the token and the page URL under **keys**. The integration can only see pages you
+explicitly share, so the token cannot reach the rest of your workspace.
+
+**Google Docs.** Create an OAuth client id (type: *Web application*) in a Google Cloud
+project with the Drive API enabled, and add the redirect URI shown in the **keys** form —
+it contains this install's extension id — to that client. Paste the client id under
+**keys**. The only scope requested is `drive.file`, which covers files this extension
+creates and nothing else in your Drive.
 
 Set a vault and folder once, if you want them:
 
@@ -107,6 +133,9 @@ only through the message types in `shared/messages.js`.
 - `extension/text-cache.js` — extracted text, cached by hash with revision checks.
 - `extension/agent-bridge.js` — the seam: gives the agent its TabSource, credentials and
   the `SKILL.md` serializer.
+- `extension/panel/export.js` — the Obsidian URI plan, chunked so nothing is truncated.
+- `extension/panel/notion.js` — markdown parsed into Notion blocks.
+- `extension/panel/gdocs.js` — the Google OAuth flow and the Drive upload.
 - `extension/viz/` — the habits page.
 - `agent/` — the loop itself: triage, passage selection, gap-fill, conversion.
 
@@ -125,6 +154,7 @@ Every permission in `manifest.json` and the one thing it is for:
 | `scripting`             | Inject Readability and the highlighter, only into tabs the agent picks. |
 | `storage`               | Hold your API keys locally so you type them once.                      |
 | `clipboardWrite`        | Put a finished skill on your clipboard for the Obsidian and copy buttons. |
+| `identity`             | The Google OAuth redirect, only when you use the Docs export.          |
 | `sidePanel`             | The panel itself.                                                      |
 | `host_permissions: <all_urls>` | Reading a chosen tab can mean any site, so the grant cannot be narrowed ahead of time. |
 
@@ -160,8 +190,9 @@ Beyond that:
   characters and can never supply a quote. At most four previews or reads are in flight at
   once. See [agent/PROGRESSIVE.md](agent/PROGRESSIVE.md) for the limits and how to clear
   the stored data.
-- Your API keys live in `chrome.storage.local`, on this machine, and are sent only to
-  OpenRouter and, if you add a key for it, Exa.
+- Your API keys and connector credentials live in `chrome.storage.local`, on this
+  machine, and are sent only to the service each belongs to: OpenRouter, Exa, Notion
+  or Google. A finished skill goes to a connector only when you press its button.
 - Nothing is sent anywhere else. There is no telemetry.
 - Dates mean earliest *retained* visits, not guaranteed first-ever visits.
 - Loading unpacked packages the whole folder, so a `.env` in the repo root ships with it.

@@ -11,6 +11,8 @@ import { MSG, on, request } from "../../shared/messages.js";
 import { isTraceEvent } from "../../shared/types.js";
 import { skillFilename, skillDescription, replayDelay, elide } from "./format.js";
 import { obsidianTarget } from "./export.js";
+import { createNotionPage } from "./notion.js";
+import { createGoogleDoc } from "./gdocs.js";
 
 const els = {
   trace: document.getElementById("trace"),
@@ -28,6 +30,12 @@ const els = {
   download: document.getElementById("download"),
   obsidian: document.getElementById("obsidian"),
   copy: document.getElementById("copy"),
+  notion: document.getElementById("notion"),
+  gdocs: document.getElementById("gdocs"),
+  notionToken: document.getElementById("notion-token"),
+  notionParent: document.getElementById("notion-parent"),
+  googleClient: document.getElementById("google-client"),
+  redirectHint: document.getElementById("redirect-hint"),
   keyForm: document.getElementById("key-form"),
   apiKey: document.getElementById("api-key"),
   exaKey: document.getElementById("exa-key"),
@@ -281,6 +289,63 @@ els.obsidian?.addEventListener("click", async () => {
   );
 });
 
+/** Shared shape for the export buttons that call a remote API. */
+async function exportTo(button, label, run) {
+  if (!currentSkill) return;
+
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "sending…";
+
+  try {
+    const result = await run();
+    if (result.ok) {
+      renderEvent(panelEvent("done", "Created in " + label + ".", result.url ?? ""));
+      setStatus("sent to " + label.toLowerCase(), "ok");
+      if (result.url) chrome.tabs.create({ url: result.url, active: false }).catch(() => {});
+    } else {
+      renderEvent(panelEvent("error", label + " export failed.", result.error ?? "no reason given"));
+      setStatus(label.toLowerCase() + " failed", "bad");
+    }
+  } catch (err) {
+    renderEvent(panelEvent("error", label + " export failed.", err?.message ?? String(err)));
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+els.notion?.addEventListener("click", () =>
+  exportTo(els.notion, "Notion", async () => {
+    const stored = await chrome.storage.local.get(["NOTION_TOKEN", "NOTION_PARENT"]);
+    if (!stored.NOTION_TOKEN || !stored.NOTION_PARENT) {
+      showKeyForm();
+      return { ok: false, error: "Set a Notion token and parent page under keys first." };
+    }
+    return createNotionPage({
+      token: stored.NOTION_TOKEN,
+      parentId: stored.NOTION_PARENT,
+      title: skillFilename(currentSkill).replace(/\.md$/, ""),
+      markdown: currentSkill
+    });
+  })
+);
+
+els.gdocs?.addEventListener("click", () =>
+  exportTo(els.gdocs, "Google Docs", async () => {
+    const stored = await chrome.storage.local.get(["GOOGLE_CLIENT_ID"]);
+    if (!stored.GOOGLE_CLIENT_ID) {
+      showKeyForm();
+      return { ok: false, error: "Set a Google OAuth client id under keys first." };
+    }
+    return createGoogleDoc({
+      clientId: stored.GOOGLE_CLIENT_ID,
+      name: skillFilename(currentSkill).replace(/\.md$/, ""),
+      markdown: currentSkill
+    });
+  })
+);
+
 /**
  * Hand a URL to the OS protocol handler.
  *
@@ -401,22 +466,81 @@ async function replayScriptedRun() {
 }
 // ---- credentials ------------------------------------------------------
 
-function showKeyForm() {
+/** Every credential the panel stores, and the field it comes from. */
+const CREDENTIALS = [
+  { key: "OPENROUTER_API_KEY", field: "apiKey", label: "OpenRouter", secret: true },
+  { key: "EXA_API_KEY", field: "exaKey", label: "Exa", secret: true },
+  { key: "NOTION_TOKEN", field: "notionToken", label: "Notion", secret: true },
+  { key: "NOTION_PARENT", field: "notionParent", label: "Notion parent", secret: false },
+  { key: "GOOGLE_CLIENT_ID", field: "googleClient", label: "Google client id", secret: false }
+];
+
+/**
+ * A stored secret is never read back into its field — the placeholder says it is
+ * there, and leaving the field blank keeps it. A non-secret (a page URL, a client
+ * id) is shown, since seeing it is how you check it is right.
+ */
+async function showKeyForm() {
   els.keyForm.hidden = false;
-  els.apiKey.focus();
+
+  try {
+    const stored = await chrome.storage.local.get(CREDENTIALS.map((c) => c.key));
+    for (const { key, field, secret } of CREDENTIALS) {
+      const input = els[field];
+      if (!input) continue;
+      if (secret) {
+        if (stored[key]) input.placeholder = "saved — leave blank to keep";
+      } else if (stored[key]) {
+        input.value = stored[key];
+      }
+    }
+  } catch {
+    // Worth continuing without: the fields still accept new values.
+  }
+
+  // The redirect Google has to be told about, shown rather than documented,
+  // because it contains this install's own extension id.
+  if (els.redirectHint && chrome.identity?.getRedirectURL) {
+    els.redirectHint.textContent = "Authorised redirect URI: " + chrome.identity.getRedirectURL();
+  }
+
+  if (!els.apiKey.value) els.apiKey.focus();
 }
+
+els.keysToggle?.addEventListener("click", () => {
+  if (els.keyForm.hidden) showKeyForm();
+  else els.keyForm.hidden = true;
+});
 
 els.keyForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const key = els.apiKey.value.trim();
-  if (!key) return;
+
+  const update = {};
+  const saved = [];
+  for (const { key, field, label } of CREDENTIALS) {
+    const value = els[field]?.value.trim();
+    if (value) {
+      update[key] = value;
+      saved.push(label);
+    }
+  }
+
+  if (!saved.length) {
+    els.keyForm.hidden = true;
+    return;
+  }
 
   // Stored in this browser's extension storage, never in the repo.
-  await chrome.storage.local.set({ OPENROUTER_API_KEY: key });
-  els.apiKey.value = "";
+  await chrome.storage.local.set(update);
+
+  // Secrets are cleared from the DOM; the rest stay visible for checking.
+  for (const { field, secret } of CREDENTIALS) {
+    if (secret && els[field]) els[field].value = "";
+  }
   els.keyForm.hidden = true;
-  renderEvent(panelEvent("note", "Key saved. Run again for a real pass over your tabs."));
-  setStatus("key saved", "ok");
+
+  renderEvent(panelEvent("note", saved.join(", ") + " saved.", "Stored in this browser only."));
+  setStatus("keys saved", "ok");
 });
 
 /** Vault and folder for the Obsidian export, if the user set them. */

@@ -11,6 +11,7 @@
     "history",
     "storage",
     "clipboardWrite",
+    "identity",
     "sidePanel"
   ],
   "host_permissions": [

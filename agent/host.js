@@ -6,9 +6,10 @@ import { selectPassages } from './passages.js';
 import { assessGaps } from './gaps.js';
 import { selectHistory } from './history.js';
 import { HISTORY_LIMIT, historyUrl, historyMetadata } from '../shared/history.js';
+import { DEFAULT_READ_LIMIT, PASSAGE_BATCH_SIZE, readLimit } from '../shared/limits.js';
 
 export const DEFAULT_MODEL = 'google/gemini-2.5-flash';
-export const MAX_READS = 8;
+export const MAX_READS = DEFAULT_READ_LIMIT;
 export const MAX_ITERATIONS = 20;
 export const MAX_SEARCHES = 2;
 
@@ -48,7 +49,8 @@ export function createOpenRouterModel({ env = {}, fetchImpl = globalThis.fetch, 
  * @returns {Promise<{status:string,skill:object|null,reads:number,iterations:number,messages:Array,triage:object|null}>}
  */
 async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env ?? {},
-  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {}, includeHistory = false, historySource = null, historyModel = model }) {
+  fetchImpl = globalThis.fetch, timeoutMs = 30000, model = createOpenRouterModel({ env, fetchImpl, timeoutMs }), triageModel = model, passageModel = model, onHighlight = () => {}, stopAfterPassages = false, mode = 'tight', gapModel = model, stopAfterCoverage = false, journal = () => {}, includeHistory = false, historySource = null, historyModel = model, maxReads = env.READ_LIMIT ?? DEFAULT_READ_LIMIT }) {
+  maxReads = readLimit(maxReads);
   if (typeof includeHistory !== 'boolean') throw new Error('includeHistory must be a boolean');
   if (!['tight', 'loose'].includes(mode)) throw new Error('mode must be tight or loose');
   if (typeof onTrace !== 'function') throw new Error('onTrace callback is required');
@@ -73,10 +75,11 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
     return { status, skill: tools.getSkill(), reads, iterations, messages, triage, passages, passageSelections, searches, coverageAssessments, historySelections, mode };
   };
   let prompt;
-  try { prompt = await loadSystemPrompt(); }
+  try { prompt = (await loadSystemPrompt()).replace('{readCap}', String(maxReads)); }
   catch (error) { emit('error', error.message); return finish('error', 'Stopped: system prompt unavailable.'); }
   messages.push({ role: 'system', content: prompt }, { role: 'user', content: goal }, { role: 'user', content: `Run mode: ${mode}. The host performs passage selection and coverage assessment before continuation. Web searches are executed by that coverage step only. Preserve source:web and firstVisit:null on web citations. Preserve source:history on reopened history pages. Dates are earliest retained visits, never guaranteed first-ever visits. Never describe web or history sources as tabs that were already open.` });
   emit('plan', `Goal: ${goal}`);
+  emit('note', `Page budget: ${maxReads} reads shared across open tabs and history.`);
   // Enumerate once before the first model turn. Feed triage an explicit metadata
   // projection, not the full list result (which may include other shared fields).
   emit('tool', 'Listing tabs for triage');
@@ -93,7 +96,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   async function discoverHistory(query) {
     if (!includeHistory || historyAttempted) return false;
     historyAttempted = true;
-    if (reads >= MAX_READS || iterations >= MAX_ITERATIONS - 1) {
+    if (reads >= maxReads || iterations >= MAX_ITERATIONS - 1) {
       emit('note', 'History skipped: no read or model budget remains.'); return false;
     }
     if (!historySource?.search || !historySource?.open) {
@@ -121,7 +124,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
     emit('result', `Found ${candidates.length} history candidates (metadata only)`);
     let selection;
     try {
-      selection = await selectHistory({ goal, query, mode, candidates, cap: MAX_READS - reads,
+      selection = await selectHistory({ goal, query, mode, candidates, cap: maxReads - reads,
         model: historyModel, maxModelCalls: Math.min(2, MAX_ITERATIONS - iterations - 1) });
       iterations += selection.modelCalls; historySelections.push(selection);
     } catch (error) {
@@ -131,7 +134,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
     if (selection.note) emit('plan', selection.note);
     if (selection.truncated) emit('note', `History reads capped to ${selection.open.length} remaining slots.`);
     for (const choice of selection.open) {
-      if (reads >= MAX_READS) break;
+      if (reads >= maxReads) break;
       const candidate = candidates.find(c => c.historyId === choice.historyId);
       emit('tool', `Reopening history page: ${candidate.title}`, choice.why);
       journal('tool_call', { name: 'history_read', args: { historyId: candidate.historyId, url: candidate.url } });
@@ -159,7 +162,8 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   }
 
   try {
-    triage = await runTriage({ goal, tabs, cap: MAX_READS, model: triageModel,
+    const initialReadCap = includeHistory && maxReads > 8 ? maxReads - Math.min(8, Math.floor(maxReads / 3)) : maxReads;
+    triage = await runTriage({ goal, tabs, mode, cap: initialReadCap, model: triageModel,
       onTrace: event => { isTraceEvent(event); onTrace(event); } });
     iterations = triage.modelCalls;
   } catch (error) {
@@ -173,7 +177,10 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   emit('note', `Skipped ${triage.skip.length}: ${duplicates} duplicates, ${triage.skip.length - duplicates} other skips.`);
   // Preserve a normal tool conversation for subsequent reasoning. The host, not
   // a second model decision, executes the validated initial selection.
-  messages.push({ role: 'assistant', content: null, tool_calls: [{ id: 'triage-list', type: 'function', function: { name: 'list_tabs', arguments: '{}' } }] },
+  if (tabs.length > 50) {
+    const selected = new Set(triage.open.map(t => t.id));
+    messages.push({ role: 'user', content: `Local metadata triage selected these tabs from ${tabs.length} open tabs: ${JSON.stringify(tabs.filter(t => selected.has(t.id)))}. Decisions: ${JSON.stringify(triage.open)}. Skipped ${triage.skip.length}. The selected tabs are now being read; continue from their results without repeating triage.` });
+  } else messages.push({ role: 'assistant', content: null, tool_calls: [{ id: 'triage-list', type: 'function', function: { name: 'list_tabs', arguments: '{}' } }] },
     { role: 'tool', tool_call_id: 'triage-list', content: JSON.stringify(tabs) },
     { role: 'user', content: `Metadata triage completed: ${JSON.stringify({ open: triage.open, skip: triage.skip, note: triage.note })}. The selected tabs are now being read. Continue from their results without repeating triage.` });
   let initialReads = triage.open.length ? {
@@ -182,10 +189,11 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
   } : null;
   while (initialReads || iterations < MAX_ITERATIONS) {
     if (!initialReads && pendingTabs.size) {
-      emit('plan', `Selecting passages from ${pendingTabs.size} read tabs.`);
+      const batch = mode === 'loose' ? allReadTabs : new Map([...pendingTabs].slice(0, PASSAGE_BATCH_SIZE));
+      emit('plan', `Selecting passages from ${batch.size} read tabs.`);
       let selection;
       try {
-        selection = await selectPassages({ goal, tabs: [...(mode === 'loose' ? allReadTabs : pendingTabs).values()], model: passageModel, mode,
+        selection = await selectPassages({ goal, tabs: [...batch.values()], model: passageModel, mode,
           maxModelCalls: MAX_ITERATIONS - iterations });
         iterations += selection.modelCalls;
       } catch (error) {
@@ -200,7 +208,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         return { ...p, source: history ? 'history' : 'tab', url: tab?.url, firstVisit: tab?.firstVisit ?? null,
           ...(history ? { historyId: history.historyId, lastVisit: history.lastVisit } : {}) };
       });
-      passages = (mode === 'loose' ? [] : passages.filter(passage => !pendingTabs.has(passage.tabId))).concat(enriched);
+      passages = (mode === 'loose' ? [] : passages.filter(passage => !batch.has(passage.tabId))).concat(enriched);
       if (mode === 'loose') {
         if (selection.none) emit('note', selection.none);
         for (const p of enriched) emit('note', `Rhyme: tab ${p.tabId}, ${p.ageMonths === null ? 'age unknown' : p.ageMonths + ' months old'}`, p.connection, p.tabId);
@@ -210,10 +218,11 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
       for (const item of selection.empty) emit('note', `Tab ${item.tabId}: no procedural passages.`, item.why, item.tabId);
       // Only sanitized, verified spans enter the continuing model conversation.
       messages.push({ role: 'user', content: `Use only these verified passages as quoted evidence for these tabs: ${JSON.stringify({ passages: enriched, empty: selection.empty })}` });
-      for (const tabId of (mode === 'loose' ? allReadTabs : pendingTabs).keys()) {
+      for (const tabId of batch.keys()) {
         await onHighlight({ tabId, quotes: selection.passages.filter(p => p.tabId === tabId).map(p => p.quote) });
       }
-      pendingTabs.clear();
+      for (const tabId of batch.keys()) pendingTabs.delete(tabId);
+      if (pendingTabs.size) continue;
     }
     if (!initialReads && mode === 'loose' && await discoverHistory(goal)) continue;
     if (!initialReads && stopAfterPassages) return finish('passages', 'Passage selection and verification completed.');
@@ -302,7 +311,7 @@ async function runLive({ goal, tabSource, onTrace, env = globalThis.process?.env
         }
         invalidAttempts.delete(name);
         if (name === 'read_tab') {
-          if (reads >= MAX_READS) throw new Error('Read budget exhausted: all 8 read_tab calls used. Use already-read tabs or finish.');
+          if (reads >= maxReads) throw new Error(`Read budget exhausted: all ${maxReads} read_tab calls used. Use already-read tabs or finish.`);
           reads++; // Failed and blocked reads consume budget too.
         }
         if (name === 'web_search') throw new Error(mode === 'loose' ? 'Gap-fill search is tight-mode only.' : 'Search is host-managed: coverage must name the gap before searching; at most two searches per run.');

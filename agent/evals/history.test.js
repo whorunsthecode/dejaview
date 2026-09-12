@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { runAgent, createOpenRouterModel } from '../host.js';
 import { StubTabSource } from '../tab-sources.js';
 import { isHistoryCandidate } from '../../shared/history.js';
+import { HISTORY_LIMIT } from '../../shared/history.js';
 import { renderSkill } from '../../extension/agent-bridge.js';
 
 const json = value => ({ role: 'assistant', content: JSON.stringify(value) });
@@ -30,14 +31,14 @@ function fixture({ enabled = true, selected = [481], count = 2, openError = fals
     }
   };
   const options = {
-    goal: 'Implement OAuth device polling and store refresh tokens in Keychain.', mode, includeHistory: enabled, tabSource, historySource, env: {},
+    maxReads: 8, goal: 'Implement OAuth device polling and store refresh tokens in Keychain.', mode, includeHistory: enabled, tabSource, historySource, env: {},
     onTrace: e => events.push(e), onHighlight: p => highlights.push(p),
     triageModel: async () => json({ open: selected.map(id => ({ id, why: 'Inspect protocol rules for device polling.' })), skip: originals.filter(t => !selected.includes(t.id)).map(t => ({ id: t.id, why: 'Different procedure from device token storage.' })), note: null }),
     historyModel: async ({ messages }) => {
       stats.historyModels++;
       assert.ok(!JSON.stringify(messages).includes('UNREAD_SECRET'));
       const input = JSON.parse(messages.at(-1).content);
-      assert.ok(input.candidates.length <= 50);
+      assert.ok(input.candidates.length <= HISTORY_LIMIT);
       return json({ open: input.candidates.map(c => ({ historyId: c.historyId, why: 'Explains Keychain persistence.' })), note: 'Previously visited storage procedures.' });
     },
     passageModel: async ({ messages }) => {
@@ -95,7 +96,7 @@ test('failed history lookup, blocked text and failed reopening recover before Ex
   }
 });
 test('host deduplicates already open pages and bounds metadata sent to model', async () => {
-  const f = fixture({ count: 60 });
+  const f = fixture({ count: HISTORY_LIMIT + 10 });
   f.candidates.unshift({ ...candidate(99), url: originals[0].url + '?utm_source=history' });
   const result = await runAgent(f.options);
   assert.equal(result.reads, 8); assert.equal(f.stats.opens, 7);

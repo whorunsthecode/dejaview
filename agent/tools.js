@@ -9,7 +9,7 @@ export const toolSchemas = [
   },
   {
     name: "read_tab",
-    description: "Fetch the readable text of one tab. Expensive. Max 8 reads per run.",
+    description: "Fetch the readable text of one tab. Expensive. Respect the host's remaining shared page budget.",
     parameters: {
       type: "object",
       properties: { id: { type: "number" } },

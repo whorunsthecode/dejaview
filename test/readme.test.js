@@ -39,14 +39,11 @@ test("every message type is documented", () => {
   }
 });
 
-test("the privacy line survives verbatim", () => {
-  // This sentence is a promise about what the history permission is for. If the
-  // code ever stops honouring it, this line has to be deleted, not reworded.
-  assert.match(
-    README,
-    /history` permission is used exclusively to date tabs that are already open/
-  );
-  assert.match(README, /never enumerated or mined as a corpus/);
+test("privacy documents optional history discovery and default open-tab dating", () => {
+  assert.match(README, /By default, history is used only to date already-open tabs/);
+  assert.match(README, /Include recent\nhistory/);
+  assert.match(README, /Only selected pages are reopened and read/);
+  assert.match(README, /no background history collection/);
 });
 
 test("the stated Chrome floor matches the manifest", () => {

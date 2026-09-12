@@ -10,6 +10,7 @@ import { listTabs, countDated, contractViolations, formatFirstVisit } from "./ta
 import { readTab, readTabs, MAX_CHARS } from "./extract.js";
 import { highlightTab } from "./highlight.js";
 import { loadEnv, startRun, isRunning, renderSkill } from "./agent-bridge.js";
+import { readLimit } from '../shared/limits.js';
 
 const manifest = chrome.runtime.getManifest();
 
@@ -51,6 +52,9 @@ on(MSG.PING, async () => {
 on(MSG.RUN, async (payload) => {
   const goal = typeof payload?.goal === "string" ? payload.goal.trim() : "";
   if (!goal) return { ok: false, error: "RUN needs a non-empty goal" };
+  let maxReads;
+  try { maxReads = readLimit(payload?.maxReads); }
+  catch (error) { return { ok: false, error: error.message }; }
 
   const tabs = await listTabs();
   const counts = countDated(tabs);
@@ -81,7 +85,7 @@ on(MSG.RUN, async (payload) => {
 
   // Fire and forget: progress reaches the panel as TRACE, the finished file as
   // SKILL. This reply only reports that the loop got under way.
-  startRun({ goal, env, includeHistory: payload?.includeHistory === true });
+  startRun({ goal, env, includeHistory: payload?.includeHistory === true, maxReads });
   return { ok: true, goal, ...counts, violations: violations.length, started: true };
 });
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { browserHistorySource } from '../extension/history.js';
-import { HISTORY_DAYS } from '../shared/history.js';
+import { HISTORY_DAYS, HISTORY_LIMIT, HISTORY_SCAN_LIMIT } from '../shared/history.js';
 const now = Date.now(), day = 86400000;
 const item = (i, age = 1) => ({ id: String(i), url: `https://example.org/docs/${i}`, title: 'Keychain storage', lastVisitTime: now - age * day, visitCount: 2 });
 function fake(items) {
@@ -20,21 +20,30 @@ function fake(items) {
   return { api, calls, tabs };
 }
 test('history discovery is bounded, excludes open/non-web/old URLs, and dates only shortlisted candidates', async () => {
-  const f = fake([...Array.from({ length: 80 }, (_, i) => item(i)), { ...item(100), url: 'chrome://settings' }, item(101, 100), { ...item(102), url: item(1).url + '?utm_source=duplicate' }]);
+  const f = fake([...Array.from({ length: 300 }, (_, i) => item(i)), { ...item(1000), url: 'chrome://settings' }, item(1001, 100), { ...item(1002), url: item(1).url + '?utm_source=duplicate' }]);
   const source = browserHistorySource({ api: f.api, now: () => now });
   assert.equal(f.calls.searches.length, 0);
-  const found = await source.search({ query: 'Keychain', excludeUrls: [item(0).url], limit: 99 });
-  assert.equal(found.length, 50); assert.equal(f.calls.visits.length, 50);
-  assert.equal(new Set(found.map(c => c.url)).size, 50);
-  assert.ok(found.every(c => !['0','100','101'].includes(c.historyId)));
+  const found = await source.search({ query: 'Keychain', excludeUrls: [item(0).url], limit: HISTORY_LIMIT + 100 });
+  assert.equal(found.length, HISTORY_LIMIT); assert.equal(f.calls.visits.length, HISTORY_LIMIT);
+  assert.equal(new Set(found.map(c => c.url)).size, HISTORY_LIMIT);
+  assert.ok(found.every(c => !['0','1000','1001'].includes(c.historyId)));
   assert.ok(found.every(c => c.firstVisit === now - 60 * day));
-  assert.deepEqual(f.calls.searches[0], { text: '', startTime: now - HISTORY_DAYS * day, endTime: now, maxResults: 2000 });
+  assert.deepEqual(f.calls.searches[0], { text: '', startTime: now - HISTORY_DAYS * day, endTime: now, maxResults: HISTORY_SCAN_LIMIT });
+  assert.equal(f.calls.created.length, 0);
+});
+test('discovery can rank a matching entry beyond the former 2000 URL ceiling', async () => {
+  const items = Array.from({ length: 10000 }, (_, i) => ({ ...item(i), title: i === 9000 ? 'Shader banding precision' : 'Unrelated reference' }));
+  const f = fake(items);
+  f.api.history.search = async query => { f.calls.searches.push(query); return items.slice(0, query.maxResults); };
+  const found = await browserHistorySource({ api: f.api, now: () => now }).search({ query: 'shader banding precision' });
+  assert.equal(found[0].historyId, '9000');
+  assert.equal(found.length, 200); assert.equal(f.calls.visits.length, 200);
   assert.equal(f.calls.created.length, 0);
 });
 test('loose shortlist reserves space for older pages outside a dominant topic cluster', async () => {
-  const f = fake([...Array.from({ length: 55 }, (_, i) => item(i)), { ...item(999, 80), title: 'Design a disposable prototype', visitCount: 1 }]);
+  const f = fake([...Array.from({ length: 250 }, (_, i) => item(i)), { ...item(999, 80), title: 'Design a disposable prototype', visitCount: 1 }]);
   const found = await browserHistorySource({ api: f.api, now: () => now }).search({ query: 'Keychain', mode: 'loose' });
-  assert.ok(found.some(c => c.historyId === '999')); assert.equal(found.length, 50);
+  assert.ok(found.some(c => c.historyId === '999')); assert.equal(found.length, HISTORY_LIMIT);
 });
 test('unknown earliest visit stays null instead of being replaced by the latest visit', async () => {
   const f = fake([item(1)]); f.api.history.getVisits = async () => { throw new Error('Denied'); };

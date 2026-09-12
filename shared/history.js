@@ -4,7 +4,8 @@
  * A run explicitly opts in before either method may be called.
  */
 export const HISTORY_DAYS = 90;
-export const HISTORY_LIMIT = 50;
+export const HISTORY_LIMIT = 200;
+export const HISTORY_SCAN_LIMIT = 10000;
 export function historyUrl(url) {
   try {
     const u = new URL(url);

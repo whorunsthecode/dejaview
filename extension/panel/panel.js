@@ -9,11 +9,25 @@
  */
 import { MSG, on, request } from "../../shared/messages.js";
 import { isTraceEvent } from "../../shared/types.js";
+import { skillFilename, skillDescription, replayDelay, elide } from "./format.js";
 
-const traceEl = document.getElementById("trace");
-const statusEl = document.getElementById("status");
-const form = document.getElementById("run-form");
-const goalEl = document.getElementById("goal");
+const els = {
+  trace: document.getElementById("trace"),
+  empty: document.getElementById("empty"),
+  status: document.getElementById("status"),
+  form: document.getElementById("run-form"),
+  goal: document.getElementById("goal"),
+  run: document.getElementById("run"),
+  includeHistory: document.getElementById("include-history"),
+  readLimit: document.getElementById("read-limit"),
+  result: document.getElementById("result"),
+  skillName: document.getElementById("skill-name"),
+  skillDesc: document.getElementById("skill-desc"),
+  skillBody: document.getElementById("skill-body"),
+  download: document.getElementById("download"),
+  keyForm: document.getElementById("key-form"),
+  apiKey: document.getElementById("api-key")
+};
 
 /** Resolved tab titles, keyed by tab id, so a `ref` can name its source. */
 const titles = new Map();
@@ -112,19 +126,51 @@ function setStatus(text, state) {
   els.status.className = state ?? "";
 }
 
-/**
- * Ask the worker to identify itself. This is the round trip that proves the
- * skeleton works: panel opens, message goes out, reply comes back.
- */
-async function handshake() {
-  setStatus("waking worker…", "pending");
+function setRunning(next) {
+  running = next;
+  els.goal.disabled = next;
+  els.run.disabled = next;
+  els.includeHistory.disabled = next;
+  els.readLimit.disabled = next;
+  els.run.textContent = next ? "running…" : "run";
+}
+
+// ---- result -----------------------------------------------------------
+
+function showSkill(markdown) {
+  currentSkill = markdown ?? "";
+  els.skillName.textContent = skillFilename(currentSkill);
+  els.skillDesc.textContent = skillDescription(currentSkill);
+  els.skillBody.textContent = currentSkill;
+  els.result.hidden = false;
+  scrollToLatest();
+}
+
+function hideSkill() {
+  currentSkill = null;
+  els.result.hidden = true;
+  els.skillBody.textContent = "";
+}
+
+els.download.addEventListener("click", () => {
+  if (!currentSkill) return;
+  const blob = new Blob([currentSkill], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = skillFilename(currentSkill);
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+});
+
+// ---- incoming ---------------------------------------------------------
+
+// The agent host sends TRACE as { event }, so the envelope is unwrapped here.
+on(MSG.TRACE, (payload) => {
   try {
-    const reply = await request(MSG.PING, {});
-    if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
-    setStatus(
-      `worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions.length} permissions`,
-      "ok"
-    );
+    const ev = payload.event;
+    renderEvent(ev);
+    if (ev.kind === "done" || ev.kind === "error") setRunning(false);
   } catch (err) {
     renderEvent(panelEvent("error", "Malformed TRACE event.", err.message));
   }
@@ -145,11 +191,22 @@ els.form.addEventListener("submit", async (e) => {
   if (!goal) return;
 
   clearTrace();
-  renderEvent(panelEvent("plan", `Goal: ${goal}`, "Sent to the service worker."));
+  hideSkill();
+  setRunning(true);
+  renderEvent(panelEvent("plan", "Goal: " + goal, els.includeHistory.checked ? "Reading open tabs, with recent history available if useful." : "Reading the tabs you already have open."));
 
   try {
-    const reply = await request(MSG.RUN, { goal });
-    if (reply?.ok) {
+    const reply = await request(MSG.RUN, { goal, includeHistory: els.includeHistory.checked, maxReads: Number(els.readLimit.value) });
+
+    if (!reply?.ok) {
+      renderEvent(panelEvent("error", "The worker rejected the run.", reply?.error ?? "no reason given"));
+      setRunning(false);
+      return;
+    }
+
+    // When the loop is live it reports through TRACE, so the panel stays in its
+    // running state until a done/error event or the finished SKILL arrives.
+    if (reply.started) {
       renderEvent(
         panelEvent(
           "result",
@@ -186,14 +243,77 @@ els.form.addEventListener("submit", async (e) => {
   }
 });
 
-/** The scripted trace from shared/, so the panel has something to show on open. */
-async function loadStubs() {
-  const url = chrome?.runtime?.getURL
-    ? chrome.runtime.getURL("shared/trace-stubs.json")
-    : "../../shared/trace-stubs.json";
-  const res = await fetch(url);
-  const events = await res.json();
-  events.forEach(renderEvent);
+/**
+ * Replay the scripted run until the agent loop is connected. The status line
+ * says so plainly — the trace should never imply work that did not happen.
+ */
+async function replayScriptedRun() {
+  setStatus("scripted run", "pending");
+
+  const events = await fetch(assetUrl("shared/trace-stubs.json")).then((r) => r.json());
+
+  let previous = events[0]?.t ?? 0;
+  for (const ev of events) {
+    await sleep(replayDelay(previous, ev.t));
+    previous = ev.t;
+    renderEvent(ev);
+  }
+
+  const markdown = await fetch(assetUrl("extension/panel/demo-skill.md")).then((r) => r.text());
+  showSkill(markdown);
 }
 
+// ---- boot -------------------------------------------------------------
+
+// ---- credentials ------------------------------------------------------
+
+function showKeyForm() {
+  els.keyForm.hidden = false;
+  els.apiKey.focus();
+}
+
+els.keyForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const key = els.apiKey.value.trim();
+  if (!key) return;
+
+  // Stored in this browser's extension storage, never in the repo.
+  await chrome.storage.local.set({ OPENROUTER_API_KEY: key });
+  els.apiKey.value = "";
+  els.keyForm.hidden = true;
+  renderEvent(panelEvent("note", "Key saved. Run again for a real pass over your tabs."));
+  setStatus("key saved", "ok");
+});
+
+/** Preload stub tab titles so a scripted run's refs resolve to real titles. */
+async function preloadStubTitles() {
+  try {
+    const tabs = await fetch(assetUrl("shared/stubs.json")).then((r) => r.json());
+    for (const tab of tabs) {
+      if (typeof tab?.id === "number" && !titles.has(tab.id)) titles.set(tab.id, tab.title ?? null);
+    }
+  } catch {
+    // Only cosmetic: without it, a scripted run shows tab ids instead of titles.
+  }
+}
+
+/**
+ * Ask the worker to identify itself. The reply proves the worker woke, its
+ * module graph loaded, and the manifest permissions are actually granted.
+ */
+async function handshake() {
+  setStatus("waking worker…", "pending");
+  try {
+    const reply = await request(MSG.PING, {});
+    if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
+    setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions`, "ok");
+    if (!reply.hasKey) showKeyForm();
+  } catch (err) {
+    setStatus("worker unreachable", "bad");
+    renderEvent(panelEvent("error", "Could not reach the service worker.", err.message));
+  }
+}
+
+setRunning(false);
+await preloadStubTitles();
 await handshake();

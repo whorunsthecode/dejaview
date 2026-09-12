@@ -14,7 +14,7 @@ const reply = (...calls) => ({ role: 'assistant', content: null, tool_calls: cal
 function scripted(responses) { let index = 0; return async () => responses[index++]; }
 async function run(model, options = {}) {
   const events = [];
-  const result = await runAgent({ goal: 'test', tabSource: new StubTabSource(), env: {}, model,
+  const result = await runAgent({ maxReads: 8, goal: 'test', tabSource: new StubTabSource(), env: {}, model,
     onTrace: event => { isTraceEvent(event); events.push(event); },
     gapModel: async () => ({ role: 'assistant', content: JSON.stringify({ covered: 'Isolated K1 test.', gaps: [] }) }),
     passageModel: async ({ messages }) => ({ role: 'assistant', content: JSON.stringify({ passages: [], empty: JSON.parse(messages.at(-1).content).tabs.map(tab => ({ tabId: tab.id, why: 'Isolated K1 test.' })) }) }),

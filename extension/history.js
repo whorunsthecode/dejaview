@@ -1,4 +1,4 @@
-import { HISTORY_DAYS, HISTORY_LIMIT, historyUrl, historyMetadata } from '../shared/history.js';
+import { HISTORY_DAYS, HISTORY_LIMIT, HISTORY_SCAN_LIMIT, historyUrl, historyMetadata } from '../shared/history.js';
 
 /** Bounds apply before sending any metadata to a model. No background collection. */
 export function browserHistorySource({ api = globalThis.chrome, now = () => Date.now(), loadTimeoutMs = 15000 } = {}) {
@@ -6,7 +6,7 @@ export function browserHistorySource({ api = globalThis.chrome, now = () => Date
     async search({ query, mode = 'tight', excludeUrls = [], limit = HISTORY_LIMIT }) {
       const endTime = now(), startTime = endTime - HISTORY_DAYS * 86400000;
       const excluded = new Set(excludeUrls.map(historyUrl));
-      const raw = await api.history.search({ text: '', startTime, endTime, maxResults: 2000 });
+      const raw = await api.history.search({ text: '', startTime, endTime, maxResults: HISTORY_SCAN_LIMIT });
       const unique = new Map();
       for (const item of raw) {
         const key = historyUrl(item.url);

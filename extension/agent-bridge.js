@@ -15,6 +15,7 @@
 import { MSG, send as sharedSend } from "../shared/messages.js";
 import { attachMessageHost } from "../agent/message-host.js";
 import { browserHistorySource } from './history.js';
+import { readLimit } from '../shared/limits.js';
 import { listTabs } from "./tabs.js";
 import { readTab } from "./extract.js";
 import { highlightTab } from "./highlight.js";
@@ -156,8 +157,8 @@ function sendFromAgent(type, payload) {
   sharedSend(type, payload);
 }
 
-function hostFor(env, includeHistory = false) {
-  const key = JSON.stringify({ env, includeHistory });
+function hostFor(env, includeHistory = false, maxReads = readLimit()) {
+  const key = JSON.stringify({ env, includeHistory, maxReads });
   if (host && hostKey === key) return host;
 
   host?.dispose?.();
@@ -165,6 +166,7 @@ function hostFor(env, includeHistory = false) {
   host = attachMessageHost({
     tabSource: browserTabSource(),
     includeHistory,
+    maxReads,
     historySource: includeHistory ? browserHistorySource() : null,
     env,
     renderSkill,
@@ -180,10 +182,10 @@ function hostFor(env, includeHistory = false) {
  * Start a run. Returns as soon as it is under way — progress reaches the panel
  * as TRACE events and the finished file as SKILL, never through this promise.
  *
- * @param {{goal: string, env: Record<string, string>, includeHistory?: boolean}} opts
+ * @param {{goal: string, env: Record<string, string>, includeHistory?: boolean, maxReads?: number}} opts
  */
-export function startRun({ goal, env, includeHistory = false }) {
-  const agent = hostFor(env, includeHistory);
+export function startRun({ goal, env, includeHistory = false, maxReads }) {
+  const agent = hostFor(env, includeHistory, readLimit(maxReads));
   running = true;
   return agent
     .run({ goal })

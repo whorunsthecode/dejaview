@@ -9,7 +9,7 @@ import { MSG, on } from "../shared/messages.js";
 import { countDated, contractViolations, formatFirstVisit } from "./tabs.js";
 import { readTab, readTabs, MAX_CHARS } from "./extract.js";
 import { highlightTab } from "./highlight.js";
-import { loadEnv, startRun, isRunning, renderSkill, indexedListTabs as listTabs, getBrowserServices, clearLocalCorpus } from "./agent-bridge.js";
+import { loadEnv, startRun, isRunning, renderSkill, indexedListTabs as listTabs, getBrowserServices, clearLocalCorpus, resolveModel } from "./agent-bridge.js";
 import { readLimit } from '../shared/limits.js';
 
 const manifest = chrome.runtime.getManifest();
@@ -44,15 +44,17 @@ on(MSG.PING, async () => {
     chrome.tabs.query({}),
     chrome.windows.getAll()
   ]);
-  const env = await loadEnv();
+  const { provider } = await resolveModel();
   return {
     ok: true,
     version: manifest.version,
     permissions: manifest.permissions,
     tabCount: tabs.length,
     windowCount: windows.length,
+    provider,
     // Lets the panel ask for a key on open, rather than after a wasted run.
-    hasKey: Boolean(env.OPENROUTER_API_KEY)
+    // A local model counts: no OpenRouter key is needed to run at all.
+    hasKey: provider !== "none"
   };
 });
 
@@ -88,17 +90,17 @@ on(MSG.RUN, async (payload) => {
   if (violations.length) console.error("dejavu: contract violations", violations);
   console.groupEnd();
 
-  const env = await loadEnv();
-  if (!env.OPENROUTER_API_KEY) {
-    // No key, no run. Say so, rather than quietly handing back something canned.
+  const { provider, model, env, reason } = await resolveModel();
+  if (provider === "none") {
+    // No model, no run. Say so, rather than quietly handing back something canned.
     return { ok: true, goal, ...counts, violations: violations.length, started: false, needsKey: true };
   }
   if (isRunning()) return { ok: false, error: "a run is already in progress" };
 
   // Fire and forget: progress reaches the panel as TRACE, the finished file as
   // SKILL. This reply only reports that the loop got under way.
-  startRun({ goal, env, includeHistory: payload?.includeHistory === true, maxReads });
-  return { ok: true, goal, ...counts, violations: violations.length, started: true };
+  startRun({ goal, env, includeHistory: payload?.includeHistory === true, maxReads, model, provider });
+  return { ok: true, goal, ...counts, violations: violations.length, started: true, provider, reason };
 });
 
 /**

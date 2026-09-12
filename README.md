@@ -17,16 +17,17 @@ declares that floor, so an older Chrome refuses to install rather than misbehavi
 2. Chrome → `chrome://extensions` → toggle **Developer mode**.
 3. **Load unpacked** → select the repo root, the folder holding `manifest.json`.
 4. Click the deja-view icon to open the side panel.
-5. Press **keys** and paste an [OpenRouter](https://openrouter.ai/keys) key, then press
-   **run** with something you are actually working on.
+5. Press **keys** and either paste an [OpenRouter](https://openrouter.ai/keys) key or
+   turn on **Local model** to use a model on your own machine, then press **run**
+   with something you are actually working on.
 
 No build step and no `npm install`. The extension has zero runtime dependencies —
 Readability is vendored into `extension/vendor/` because MV3 forbids loading remote code.
 `npm install` is only needed to run the tests.
 
-Without a key the panel will not invent a result. It says so, and offers a scripted demo
-run over `shared/stubs.json` instead — clearly labelled, so a canned file never gets
-mistaken for a real one.
+With no model configured — neither a key nor a local server — the panel will not invent
+a result. It says so, and offers a scripted demo run over `shared/stubs.json` instead —
+clearly labelled, so a canned file never gets mistaken for a real one.
 
 ## What a run does
 
@@ -231,6 +232,7 @@ only through the message types in `shared/messages.js`.
 - `extension/slices/review.js` — what the review screen shows before anything is written.
 - `extension/slices/render.js` — the Markdown document itself.
 - `extension/slices/compose.js` — the model step, and what the document says without one.
+- `extension/local-model.js` — the local-model provider, and the rule that it never falls back to the cloud.
 - `extension/panel/export.js` — the Obsidian URI plan, chunked so nothing is truncated.
 - `extension/panel/notion.js` — markdown parsed into Notion blocks.
 - `extension/panel/gdocs.js` — the Google OAuth flow and the Drive upload.
@@ -321,10 +323,64 @@ Beyond that:
 - Your API keys and connector credentials live in `chrome.storage.local`, on this
   machine, and are sent only to the service each belongs to: OpenRouter, Exa, Notion
   or Google. A finished skill goes to a connector only when you press its button.
+- **Local model** under **keys** moves every model call to a server on your own
+  machine. While it is on there is no cloud fallback of any kind: an unreachable
+  local server produces an error, never a quiet request to OpenRouter. Web search
+  is separate and still leaves the machine if you have given it an Exa key.
 - Nothing is sent anywhere else. There is no telemetry.
 - Dates mean earliest *retained* visits, not guaranteed first-ever visits.
 - Loading unpacked packages the whole folder, so a `.env` in the repo root ships with it.
   Use the panel's key fields for the extension and keep `.env` for the Node runner.
+
+## Running the model locally
+
+Under **keys → Local model** there is one switch: *process everything on this
+machine*. With it on, runs and slice write-ups go to a model on your own machine
+instead of OpenRouter.
+
+**While it is on, nothing falls back to the cloud.** If the local server is not
+reachable, the work fails and says so. A fallback would be the one behaviour that
+defeats the point of the switch, at the one moment you would be least likely to
+notice it.
+
+### What you need to install
+
+Anything that speaks the OpenAI chat-completions API. The field wants that
+server's base URL, so this is not tied to one product:
+
+| Server | Base URL | The bit people get stuck on |
+| --- | --- | --- |
+| [Ollama](https://ollama.com) | `http://localhost:11434/v1` | start it with `OLLAMA_ORIGINS` set (below) |
+| [LM Studio](https://lmstudio.ai) | `http://localhost:1234/v1` | turn on **Enable CORS** in the server tab |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) | `http://localhost:8080/v1` | nothing; it allows every origin |
+
+With Ollama, which is the shortest path:
+
+```bash
+ollama pull qwen2.5:7b
+OLLAMA_ORIGINS=chrome-extension://* ollama serve
+```
+
+`OLLAMA_ORIGINS` is the step that matters. Ollama checks the `Origin` header and
+rejects a `chrome-extension://` caller by default, which looks exactly like the
+server being down. The **keys** form prints your install's own extension id so
+you can narrow that wildcard, and the **test the connection** button tells you
+which of the two problems you have, including whether the model you named is
+actually pulled.
+
+### What works well, and what is best-effort
+
+- **Slices** are one JSON call. Any competent 7B or 8B handles them, and the
+  generated document's footer records that a local model wrote it.
+- **A full run** drives a tool-calling loop over many turns. That is a much
+  harder ask: use a model with real tool support (`qwen2.5:7b` and `llama3.1:8b`
+  are reasonable starting points) and expect it to be worse than the hosted
+  default. If it goes wrong it will do so visibly in the trace, not silently.
+- Local generation is slow enough that the timeout is three minutes rather than
+  the thirty seconds used for the hosted path.
+
+The status line in the panel says `local model` or `openrouter` at all times, so
+where your reading is going is never something you have to remember.
 
 ## Web search (optional)
 

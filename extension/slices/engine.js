@@ -33,9 +33,10 @@ export class Slices {
     cache = new TextCache(),
     tabs = listTabs,
     model = null,
+    modelLabel = "a language model",
     now = () => Date.now()
   } = {}) {
-    Object.assign(this, { api, store, cache, tabs, model, now });
+    Object.assign(this, { api, store, cache, tabs, model, modelLabel, now });
   }
 
   // ---- the map ---------------------------------------------------------
@@ -177,7 +178,7 @@ export class Slices {
     if (!entries.length) return { ok: false, error: "nothing is left to export" };
 
     const theme = draft.theme;
-    const composed = await composeSlice({ theme, entries, model: this.model });
+    const composed = await composeSlice({ theme, entries, model: this.model, modelLabel: this.modelLabel });
     const generatedAt = this.now();
 
     const markdown = renderSlice({
@@ -188,6 +189,7 @@ export class Slices {
       notes: composed.notes,
       synthesis: composed.synthesis,
       modelWritten: composed.modelWritten,
+      modelLabel: composed.modelLabel ?? this.modelLabel,
       generatedAt
     });
 
@@ -199,6 +201,7 @@ export class Slices {
       summary: summarize(draft.entries, draft.summary),
       markdown,
       modelWritten: composed.modelWritten,
+      modelLabel: composed.modelLabel ?? this.modelLabel,
       composeError: composed.error,
       generatedAt,
       generations: (draft.generations ?? 0) + 1

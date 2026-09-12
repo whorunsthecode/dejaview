@@ -64,6 +64,7 @@ export function renderSlice({
   notes = {},
   synthesis = "",
   modelWritten = false,
+  modelLabel = "a language model",
   generatedAt = Date.now()
 } = {}) {
   const lines = ["# " + (String(title ?? "").trim() || "A slice of my reading"), ""];
@@ -101,7 +102,7 @@ export function renderSlice({
   const closing = String(synthesis ?? "").trim();
   if (closing) lines.push("## What this adds up to", "", closing, "");
 
-  lines.push("---", "", provenance(entries, modelWritten, generatedAt), "");
+  lines.push("---", "", provenance(entries, modelWritten, modelLabel, generatedAt), "");
   return lines.join("\n");
 }
 
@@ -131,7 +132,7 @@ function usableGroups(groups, byKey) {
  * The footer. Dates are earliest *retained* visits, which is not the same as
  * the first time the page was ever read, and saying so costs one line.
  */
-function provenance(entries, modelWritten, generatedAt) {
+function provenance(entries, modelWritten, modelLabel, generatedAt) {
   const dates = entries.map((entry) => entry.firstVisit).filter(Number.isFinite);
   const span = dates.length
     ? "read between " + dayOf(Math.min(...dates)) + " and " + dayOf(Math.max(...dates))
@@ -143,7 +144,7 @@ function provenance(entries, modelWritten, generatedAt) {
     undated ? undated + " of them could not be dated." : "",
     "Dates are the earliest visit still in browser history, which may be later than the first time the page was read.",
     modelWritten
-      ? "Grouping and commentary written by a language model from the quoted passages."
+      ? "Grouping and commentary written by " + modelLabel + " from the quoted passages."
       : "Assembled without a model: the notes below each link describe the overlap that put it here, and nothing is interpreted.",
     "Generated " + dayOf(generatedAt) + "."
   ].filter(Boolean);

@@ -13,6 +13,7 @@ import { Slices } from "./engine.js";
 import { SliceStore, KIND } from "./store.js";
 import { PASSAGE_STATUS } from "./review.js";
 import { createOpenRouterModel } from "../../agent/host.js";
+import { loadLocalSettings, createLocalModel } from "../local-model.js";
 import { obsidianTarget } from "../panel/export.js";
 import { createNotionPage } from "../panel/notion.js";
 import { createGoogleDoc } from "../panel/gdocs.js";
@@ -67,10 +68,23 @@ const plural = (n, one, many = one + "s") => n + " " + (n === 1 ? one : many);
  */
 async function buildModel() {
   try {
+    // Local first, and with no fallback: turning it on is a statement about
+    // where the reading goes, so a local server that is down means no model,
+    // never a quiet trip to OpenRouter instead.
+    const local = await loadLocalSettings();
+    if (local.LOCAL_MODEL_ENABLED) {
+      return {
+        model: createLocalModel({ settings: local }),
+        label: "a language model running on this machine (" + local.LOCAL_MODEL_NAME + ")"
+      };
+    }
+
     const env = await chrome.storage.local.get(["OPENROUTER_API_KEY", "OPENROUTER_MODEL"]);
-    return env.OPENROUTER_API_KEY ? createOpenRouterModel({ env }) : null;
+    return env.OPENROUTER_API_KEY
+      ? { model: createOpenRouterModel({ env }), label: "a language model" }
+      : { model: null, label: "a language model" };
   } catch {
-    return null;
+    return { model: null, label: "a language model" };
   }
 }
 
@@ -485,6 +499,7 @@ els.gdocs.addEventListener("click", async () => {
 
 // ---- go ----------------------------------------------------------------
 
-slices = new Slices({ model: await buildModel() });
+const chosen = await buildModel();
+slices = new Slices({ model: chosen.model, modelLabel: chosen.label });
 await store.sweepDrafts();
 await route();

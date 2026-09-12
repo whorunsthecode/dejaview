@@ -20,6 +20,7 @@ import { highlightTab } from "./highlight.js";
 import { TabIndex } from './tab-index.js';
 import { TextCache } from './text-cache.js';
 import { peekTab } from './peek.js';
+import { loadLocalSettings, createLocalModel, chooseProvider } from './local-model.js';
 import { Rediscovery } from './rediscovery/engine.js';
 
 let browserServices;
@@ -63,6 +64,29 @@ export async function loadEnv() {
   // The agent gates web search on this flag, not on the key alone.
   if (env.EXA_API_KEY) env.ENABLE_EXA = "1";
   return env;
+}
+
+/**
+ * Which model a run will use, and where it runs.
+ *
+ * Local wins whenever it is switched on, even with an OpenRouter key saved. The
+ * toggle is a statement about where the reading goes, so falling back to the
+ * cloud because the local server was slow to start would defeat the only reason
+ * to turn it on.
+ *
+ * @returns {Promise<{provider: "local"|"cloud"|"none", model: Function|null, env: object, local: object, reason: string}>}
+ */
+export async function resolveModel() {
+  const env = await loadEnv();
+  const local = await loadLocalSettings();
+  const choice = chooseProvider({ local, env });
+
+  return {
+    ...choice,
+    env,
+    local,
+    model: choice.provider === 'local' ? createLocalModel({ settings: local }) : null
+  };
 }
 
 /**
@@ -186,8 +210,10 @@ function sendFromAgent(type, payload) {
   sharedSend(type, payload);
 }
 
-function hostFor(env, includeHistory = false, maxReads = readLimit()) {
-  const key = JSON.stringify({ env, includeHistory, maxReads });
+function hostFor(env, includeHistory = false, maxReads = readLimit(), model = null, provider = 'cloud') {
+  // The model function is new on every resolve, so the cache is keyed on which
+  // provider it is rather than on the function's identity.
+  const key = JSON.stringify({ env, includeHistory, maxReads, provider });
   if (host && hostKey === key) return host;
 
   host?.dispose?.();
@@ -200,6 +226,8 @@ function hostFor(env, includeHistory = false, maxReads = readLimit()) {
     maxReads,
     historySource: includeHistory ? browserHistorySource() : null,
     env,
+    // Omitted for the cloud path so the agent builds its own OpenRouter caller.
+    ...(model ? { model } : {}),
     renderSkill,
     send: sendFromAgent,
     // background.js owns the RUN listener, so the host must not add a second one.
@@ -215,8 +243,8 @@ function hostFor(env, includeHistory = false, maxReads = readLimit()) {
  *
  * @param {{goal: string, env: Record<string, string>, includeHistory?: boolean, maxReads?: number}} opts
  */
-export function startRun({ goal, env, includeHistory = false, maxReads }) {
-  const agent = hostFor(env, includeHistory, readLimit(maxReads));
+export function startRun({ goal, env, includeHistory = false, maxReads, model = null, provider = 'cloud' }) {
+  const agent = hostFor(env, includeHistory, readLimit(maxReads), model, provider);
   running = true;
   return agent
     .run({ goal })

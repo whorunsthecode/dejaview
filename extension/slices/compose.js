@@ -142,7 +142,7 @@ export function fallbackCompose({ theme, entries }) {
  * @returns {Promise<{groups: object[], notes: object, synthesis: string,
  *                    modelWritten: boolean, error: string|null}>}
  */
-export async function composeSlice({ theme, entries = [], model = null } = {}) {
+export async function composeSlice({ theme, entries = [], model = null, modelLabel = "a language model" } = {}) {
   const fallback = fallbackCompose({ theme, entries });
   if (!model || !entries.length) return { ...fallback, error: model ? null : "no model available" };
 
@@ -170,6 +170,7 @@ export async function composeSlice({ theme, entries = [], model = null } = {}) {
       notes: { ...fallback.notes, ...clean.notes },
       synthesis: clean.synthesis || fallback.synthesis,
       modelWritten: true,
+      modelLabel,
       error: null
     };
   } catch (error) {

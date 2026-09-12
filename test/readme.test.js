@@ -95,6 +95,21 @@ test("the sensitive list is described as a default, not a guarantee", () => {
   assert.match(README, /it will miss things|the review screen is\s+the safeguard/);
 });
 
+test("the local-model switch's one real promise is stated and kept", () => {
+  // A silent cloud fallback would defeat the only reason to turn this on, and
+  // would do it at the moment the user could least detect it.
+  assert.match(README, /nothing falls back to the cloud/i);
+  assert.match(README, /OLLAMA_ORIGINS/);
+
+  const local = readFileSync(new URL("extension/local-model.js", root), "utf8");
+  // chooseProvider returns local before it ever looks at the OpenRouter key.
+  const chooser = local.slice(local.indexOf("export function chooseProvider"));
+  assert.ok(
+    chooser.indexOf("LOCAL_MODEL_ENABLED") < chooser.indexOf("OPENROUTER_API_KEY"),
+    "the cloud key is consulted before the local switch"
+  );
+});
+
 test("the README does not still claim history is never read", () => {
   // The sentence the old version carried. Leaving it in beside the habits page
   // would be a false promise, which is worse than no promise.

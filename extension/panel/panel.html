@@ -64,6 +64,14 @@
         </g>
       </symbol>
 
+      <symbol id="i-local" viewBox="0 0 24 24">
+        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="4" width="19" height="12.5" rx="2" />
+          <path d="M8 20.5h8M12 16.5v4" />
+          <path d="M7.5 8.5 10 10.25 7.5 12M12.5 12.5h4" />
+        </g>
+      </symbol>
+
       <symbol id="i-key" viewBox="0 0 24 24">
         <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="8" cy="12" r="4" />
@@ -167,6 +175,35 @@
           </label>
           <input id="google-client" type="text" placeholder="....apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
           <p id="redirect-hint" class="hint mono"></p>
+        </section>
+
+        <section class="key-group">
+          <h2 class="key-group-head">
+            <svg class="icon" aria-hidden="true"><use href="#i-local" /></svg>
+            Local model
+          </h2>
+          <label class="option" for="local-enabled">
+            <input id="local-enabled" type="checkbox" />
+            Process everything on this machine
+          </label>
+          <p class="hint">
+            Sends runs and slice write-ups to a model running locally instead of
+            OpenRouter. While this is on, <strong>nothing falls back to the cloud</strong>
+            &mdash; if the local server is unreachable the work fails and says so,
+            rather than quietly going out over the network.
+          </p>
+
+          <label for="local-url">Server base URL &mdash; anything OpenAI-compatible.</label>
+          <input id="local-url" type="text" placeholder="http://localhost:11434/v1" autocomplete="off" spellcheck="false" />
+
+          <label for="local-name">Model name, as that server calls it.</label>
+          <input id="local-name" type="text" placeholder="llama3.1:8b" autocomplete="off" spellcheck="false" />
+
+          <p id="local-note" class="hint"></p>
+          <div class="key-actions">
+            <button id="local-test" class="chip" type="button">test the connection</button>
+          </div>
+          <p id="local-result" class="hint" role="status"></p>
         </section>
 
         <section class="key-group">

@@ -15,6 +15,12 @@ import { createNotionPage } from "./notion.js";
 import { createGoogleDoc } from "./gdocs.js";
 import { SETTING_KEYS as REDISCOVERY_KEYS, normalizeSettings } from "../rediscovery/settings.js";
 import { sourceUrls, handOff } from "../slices/handoff.js";
+import {
+  LOCAL_SETTING_KEYS,
+  normalizeLocalSettings,
+  probeLocal,
+  setupNote
+} from "../local-model.js";
 
 const els = {
   trace: document.getElementById("trace"),
@@ -56,7 +62,13 @@ const els = {
   redAge: document.getElementById("red-age"),
   redThreshold: document.getElementById("red-threshold"),
   redStats: document.getElementById("red-stats"),
-  redClear: document.getElementById("red-clear")
+  redClear: document.getElementById("red-clear"),
+  localEnabled: document.getElementById("local-enabled"),
+  localUrl: document.getElementById("local-url"),
+  localName: document.getElementById("local-name"),
+  localNote: document.getElementById("local-note"),
+  localTest: document.getElementById("local-test"),
+  localResult: document.getElementById("local-result")
 };
 
 /** Resolved tab titles, keyed by tab id, so a `ref` can name its source. */
@@ -654,6 +666,70 @@ els.redClear?.addEventListener("click", async () => {
   setStatus("rediscovery log cleared", "ok");
 });
 
+// ---- local model -------------------------------------------------------
+
+/** The setup step differs per server, and it is the one everybody trips on. */
+function renderLocalNote() {
+  if (!els.localNote) return;
+  const origin = chrome.runtime?.id ? "chrome-extension://" + chrome.runtime.id : undefined;
+  els.localNote.textContent = setupNote(els.localUrl?.value || "", origin);
+}
+
+async function fillLocalSettings() {
+  let settings;
+  try {
+    settings = normalizeLocalSettings(await chrome.storage.local.get(LOCAL_SETTING_KEYS));
+  } catch {
+    settings = normalizeLocalSettings({});
+  }
+  if (els.localEnabled) els.localEnabled.checked = settings.LOCAL_MODEL_ENABLED;
+  if (els.localUrl) els.localUrl.value = settings.LOCAL_MODEL_URL;
+  if (els.localName) els.localName.value = settings.LOCAL_MODEL_NAME;
+  renderLocalNote();
+  return settings;
+}
+
+async function saveLocalSettings() {
+  const settings = normalizeLocalSettings({
+    LOCAL_MODEL_ENABLED: Boolean(els.localEnabled?.checked),
+    LOCAL_MODEL_URL: els.localUrl?.value,
+    LOCAL_MODEL_NAME: els.localName?.value
+  });
+  await chrome.storage.local.set(settings);
+  return settings;
+}
+
+els.localUrl?.addEventListener("input", renderLocalNote);
+
+/**
+ * Prove the server is there before a run depends on it. Without this the whole
+ * failure mode is a long wait followed by an unexplained error.
+ */
+els.localTest?.addEventListener("click", async () => {
+  els.localTest.disabled = true;
+  els.localResult.textContent = "checking…";
+
+  const settings = normalizeLocalSettings({
+    LOCAL_MODEL_URL: els.localUrl?.value,
+    LOCAL_MODEL_NAME: els.localName?.value
+  });
+  const result = await probeLocal({ settings });
+  els.localTest.disabled = false;
+
+  if (!result.ok) {
+    els.localResult.textContent = result.error;
+    return;
+  }
+  if (result.has === false) {
+    els.localResult.textContent =
+      "Reached " + result.base + ", but it has no “" + settings.LOCAL_MODEL_NAME +
+      "”. It does have: " + result.models.slice(0, 6).join(", ") + ".";
+    return;
+  }
+  els.localResult.textContent =
+    "Reached " + result.base + (result.models.length ? " · " + result.models.length + " model(s) available." : ".");
+});
+
 /** The four rediscovery settings, and the control each is edited with. */
 const REDISCOVERY_FIELDS = [
   { key: "REDISCOVERY_ENABLED", field: "redEnabled", kind: "bool" },
@@ -726,6 +802,7 @@ async function showKeyForm() {
   }
 
   await fillRediscoverySettings();
+  await fillLocalSettings();
   await refreshRediscovery({ quiet: true });
 
   // The redirect Google has to be told about, shown rather than documented,
@@ -758,6 +835,7 @@ els.keyForm.addEventListener("submit", async (e) => {
   // Settings are saved on every submit, credentials or not: a user who only
   // came here to turn rediscovery off must not have to type a key to do it.
   await saveRediscoverySettings();
+  await saveLocalSettings();
 
   if (!saved.length) {
     els.keyForm.hidden = true;
@@ -809,7 +887,10 @@ async function handshake() {
   try {
     const reply = await request(MSG.PING, {});
     if (!reply?.ok) throw new Error(reply?.error ?? "worker replied without ok");
-    setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions`, "ok");
+    // Where the model runs is worth a permanent place in the status line: it is
+    // the difference between this reading leaving the machine and not.
+    const where = reply.provider === "local" ? " · local model" : reply.provider === "cloud" ? " · openrouter" : "";
+    setStatus(`worker v${reply.version} · ${reply.tabCount} tabs · ${reply.windowCount} windows · ${reply.permissions?.length ?? 0} permissions${where}`, "ok");
     if (!reply.hasKey) showKeyForm();
   } catch (err) {
     setStatus("worker unreachable", "bad");

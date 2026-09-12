@@ -1,0 +1,241 @@
+/*
+ * Palette slots come from the validated default: series 1 blue, series 2 orange.
+ * Both modes were checked with the palette validator (lightness band, chroma
+ * floor, CVD separation, normal-vision floor, contrast) and pass on both
+ * surfaces. Every chart here is single-series, so colour never carries identity.
+ */
+.viz-root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --surface-2: #f2f1ee;
+  --line: #e2e0da;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7c7a74;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --muted-fill: #c3c2bb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --surface-2: #232322;
+    --line: #333331;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8d85;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --muted-fill: #4a4a46;
+  }
+}
+
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --surface-2: #232322;
+  --line: #333331;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8d85;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --muted-fill: #4a4a46;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 64px;
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  color: var(--text-primary);
+  background: var(--surface-1);
+}
+
+header, main { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+header { padding-top: 34px; padding-bottom: 8px; }
+
+.head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 { margin: 0; font-size: 23px; letter-spacing: -0.2px; }
+h2 { margin: 0; font-size: 16px; letter-spacing: -0.1px; }
+
+.lede, .note {
+  margin: 6px 0 0;
+  max-width: 62ch;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+button {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-1);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
+button:disabled { opacity: 0.55; cursor: default; }
+
+section { margin-top: 38px; }
+section + section { border-top: 1px solid var(--line); padding-top: 30px; }
+
+/* ---- stat row -------------------------------------------------------- */
+
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.stat {
+  flex: 1 1 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.stat strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+.stat span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-variant: small-caps;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+/* ---- figures --------------------------------------------------------- */
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 26px;
+}
+
+figure { margin: 0; }
+
+figcaption { margin-bottom: 12px; }
+figcaption strong { display: block; font-size: 13px; }
+figcaption span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.4px;
+}
+
+.empty-note { margin: 0; color: var(--text-muted); font-size: 12px; }
+
+/* ---- column chart ---------------------------------------------------- */
+
+.col-chart {
+  display: block;
+  width: 100%;
+  height: 132px;
+  overflow: visible;
+}
+
+.col-chart .bar { fill: var(--series-1); }
+.col-chart.series-2 .bar { fill: var(--series-2); }
+.col-chart .bar.muted { fill: var(--muted-fill); }
+.col-chart .zero { fill: var(--line); }
+
+.col-chart .hit { fill: transparent; cursor: default; }
+.col-chart .hit:hover { fill: currentColor; opacity: 0.06; }
+.col-chart .hit:focus-visible { outline: 2px solid var(--text-muted); outline-offset: -2px; }
+
+.col-axis {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  margin-top: 5px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.col-axis span { text-align: center; }
+
+/* ---- bar chart ------------------------------------------------------- */
+
+.bar-chart { list-style: none; margin: 0; padding: 0; }
+
+.bar-chart li {
+  display: grid;
+  grid-template-columns: minmax(0, 11em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.bar-chart li:hover { color: var(--text-primary); }
+
+.bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bar-track {
+  height: 9px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--series-1);
+}
+.bar-chart.series-2 .bar-fill { background: var(--series-2); }
+.bar-chart li.muted .bar-fill { background: var(--muted-fill); }
+
+.bar-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* ---- tooltip --------------------------------------------------------- */
+
+#tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--surface-1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

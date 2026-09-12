@@ -285,3 +285,69 @@ main {
 .history-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; }
 .history-option input { width: auto; margin: 0; }
 .history-help { font-size: 11px; line-height: 1.5; opacity: .7; margin: 5px 0 0; }
+
+/* ---- header chips ---------------------------------------------------- */
+
+#keys-toggle,
+#habits {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  font-variant: small-caps;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+  background: transparent;
+}
+#keys-toggle { margin-left: 2px; }
+#habits { margin-right: auto; }
+#keys-toggle:hover,
+#habits:hover { color: var(--ink); border-color: var(--ink-soft); }
+
+/* ---- key form -------------------------------------------------------- */
+
+#key-form {
+  margin-top: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+#key-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+#key-form label + input { margin-bottom: 9px; }
+.key-row { display: flex; gap: 6px; }
+.key-row #exa-key { margin-bottom: 0; }
+
+#api-key,
+#exa-key {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+#api-key:focus,
+#exa-key:focus { outline: none; border-color: var(--ink-soft); }
+
+/* ---- export targets -------------------------------------------------- */
+
+.result-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+
+#obsidian,
+#copy {
+  border-color: var(--line);
+  color: var(--ink-soft);
+  background: transparent;
+}
+#obsidian:hover,
+#copy:hover { color: var(--ink); border-color: var(--ink-soft); }

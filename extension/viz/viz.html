@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dejavu &middot; habits</title>
+    <link rel="stylesheet" href="viz.css" />
+  </head>
+  <body class="viz-root">
+    <header>
+      <div class="head-row">
+        <h1>Your reading, seen sideways</h1>
+        <button id="refresh" type="button">refresh</button>
+      </div>
+      <p class="lede">
+        Everything here is computed in this browser and never leaves it.
+      </p>
+    </header>
+
+    <main>
+      <section id="tabs-section">
+        <h2>Open tabs</h2>
+        <p class="note">
+          The tabs you have open right now, dated by the first time each URL
+          appears in history. A tab history cannot date is counted, never guessed.
+        </p>
+
+        <div id="tab-stats" class="stat-row"></div>
+
+        <div class="charts">
+          <figure>
+            <figcaption>
+              <strong>When you first opened them</strong>
+              <span>tabs, by year of first visit</span>
+            </figcaption>
+            <div id="chart-age" class="chart"></div>
+          </figure>
+
+          <figure>
+            <figcaption>
+              <strong>Where they came from</strong>
+              <span>tabs per site</span>
+            </figcaption>
+            <div id="chart-tab-domains" class="chart"></div>
+          </figure>
+
+          <figure>
+            <figcaption>
+              <strong>How you filed them</strong>
+              <span>tabs per group</span>
+            </figcaption>
+            <div id="chart-groups" class="chart"></div>
+          </figure>
+        </div>
+      </section>
+
+      <section id="history-section">
+        <div class="head-row">
+          <h2>Browsing habits</h2>
+          <button id="load-history" type="button">read history</button>
+        </div>
+        <p class="note">
+          This reads your browsing history, which the rest of dejavu never does.
+          It is off until you ask for it, computed here, and stored nowhere.
+          Counts come from each page's most recent visit.
+        </p>
+
+        <div id="history-body" hidden>
+          <div id="history-stats" class="stat-row"></div>
+
+          <div class="charts">
+            <figure>
+              <figcaption>
+                <strong>The shape of your day</strong>
+                <span>pages last visited, by hour</span>
+              </figcaption>
+              <div id="chart-hour" class="chart"></div>
+            </figure>
+
+            <figure>
+              <figcaption>
+                <strong>The shape of your week</strong>
+                <span>pages last visited, by weekday</span>
+              </figcaption>
+              <div id="chart-weekday" class="chart"></div>
+            </figure>
+
+            <figure>
+              <figcaption>
+                <strong>Where you actually spend it</strong>
+                <span>visits per site</span>
+              </figcaption>
+              <div id="chart-history-domains" class="chart"></div>
+            </figure>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="tooltip" role="status" hidden></div>
+
+    <script type="module" src="viz.js"></script>
+  </body>
+</html>

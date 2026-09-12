@@ -39,14 +39,32 @@ test("every message type is documented", () => {
   }
 });
 
-test("the privacy line survives verbatim", () => {
-  // This sentence is a promise about what the history permission is for. If the
-  // code ever stops honouring it, this line has to be deleted, not reworded.
-  assert.match(
-    README,
-    /history` permission is used exclusively to date tabs that are already open/
-  );
-  assert.match(README, /never enumerated or mined as a corpus/);
+test("the privacy section states the default and both opt-ins", () => {
+  // The original promise was that history is read only to date open tabs. Two
+  // features now go further, so the claim had to change rather than be quietly
+  // kept: the default, and every way past it, must all be named here.
+  assert.match(README, /history is used only to date already-open tabs/);
+  assert.match(README, /Include recent history/);
+  assert.match(README, /read history/);
+  assert.match(README, /off until you turn them on/);
+  assert.match(README, /Neither runs in the background/);
+});
+
+test("the README does not still claim history is never read", () => {
+  // The sentence the old version carried. Leaving it in beside the habits page
+  // would be a false promise, which is worse than no promise.
+  assert.doesNotMatch(README, /never enumerated or mined as a corpus/);
+  assert.doesNotMatch(README, /used exclusively to date tabs/);
+});
+
+test("both history readers are opt-in in the code, not just in the README", () => {
+  const panel = readFileSync(new URL("extension/panel/panel.js", root), "utf8");
+  const viz = readFileSync(new URL("extension/viz/viz.js", root), "utf8");
+  // The run only asks for history when the box is ticked.
+  assert.match(panel, /includeHistory = Boolean\(els\.includeHistory\?\.checked\)/);
+  // The habits page reads history from a click handler, never on load.
+  assert.match(viz, /els\.loadHistory\.addEventListener\("click", renderHistory\)/);
+  assert.doesNotMatch(viz, /^await renderHistory\(\)/m);
 });
 
 test("the stated Chrome floor matches the manifest", () => {

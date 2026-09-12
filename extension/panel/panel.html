@@ -9,6 +9,8 @@
     <header>
       <div class="title-row">
         <h1>dejavu</h1>
+        <button id="keys-toggle" type="button" title="API keys">keys</button>
+        <button id="habits" type="button" title="Visualise your tabs and habits">habits</button>
         <p id="status" class="pending">starting&hellip;</p>
       </div>
       <form id="run-form">
@@ -30,14 +32,25 @@
 
       <form id="key-form" hidden>
         <label for="api-key">
-          An OpenRouter key is needed to run the agent. It is stored in this
-          browser only.
+          OpenRouter key &mdash; required to run the agent. Stored in this browser only.
+        </label>
+        <input
+          id="api-key"
+          type="password"
+          placeholder="sk-or-..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <label for="exa-key">
+          Exa key &mdash; optional. Lets the agent search the web when your tabs
+          do not cover the goal.
         </label>
         <div class="key-row">
           <input
-            id="api-key"
+            id="exa-key"
             type="password"
-            placeholder="sk-or-..."
+            placeholder="exa key"
             autocomplete="off"
             spellcheck="false"
           />
@@ -60,7 +73,11 @@
           <strong id="skill-name">skill.md</strong>
           <span id="skill-desc"></span>
         </div>
-        <button id="download" type="button">download</button>
+        <div class="result-actions">
+          <button id="obsidian" type="button" title="Send to Obsidian">obsidian</button>
+          <button id="copy" type="button" title="Copy markdown">copy</button>
+          <button id="download" type="button">download</button>
+        </div>
       </div>
       <pre id="skill-body"></pre>
     </section>

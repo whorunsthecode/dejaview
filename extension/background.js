@@ -6,6 +6,7 @@
  * state in module scope that matters across wakes.
  */
 import { MSG, on } from "../shared/messages.js";
+import { listTabs, countDated, contractViolations, formatFirstVisit } from "./tabs.js";
 
 const manifest = chrome.runtime.getManifest();
 
@@ -37,21 +38,41 @@ on(MSG.PING, async () => {
 });
 
 /**
- * Start a run. This only acknowledges for now. The agent loop that replaces it
- * is Karmen's, and it will report progress as a stream of TRACE messages rather
- * than in this reply, so the panel must not wait on this for results.
+ * Start a run. Enumerates and dates every open tab, logs the result, and returns
+ * the counts. The agent loop that consumes this list is Karmen's; it will report
+ * progress as a stream of TRACE messages rather than in this reply.
  */
 on(MSG.RUN, async (payload) => {
   const goal = typeof payload?.goal === "string" ? payload.goal.trim() : "";
   if (!goal) return { ok: false, error: "RUN needs a non-empty goal" };
 
-  const tabs = await chrome.tabs.query({});
+  const tabs = await listTabs();
+  const counts = countDated(tabs);
+  const violations = contractViolations(tabs);
+
+  console.groupCollapsed(`dejavu: ${counts.total} tabs (${counts.dated} dated, ${counts.undated} undated)`);
+  console.table(
+    tabs.map((t) => ({
+      id: t.id,
+      firstVisit: formatFirstVisit(t.firstVisit),
+      group: t.groupTitle ?? "—",
+      win: t.windowId,
+      status: t.textStatus,
+      title: t.title.slice(0, 60)
+    }))
+  );
+  // The raw objects, so the contract shape can be inspected directly.
+  console.log("dejavu: tabs", tabs);
+  if (violations.length) console.error("dejavu: contract violations", violations);
+  console.groupEnd();
+
   return {
     ok: true,
     goal,
-    tabCount: tabs.length,
+    ...counts,
+    violations: violations.length,
     started: false,
-    note: "worker reached; agent loop not wired yet"
+    note: "tabs enumerated and dated; agent loop not wired yet"
   };
 });
 

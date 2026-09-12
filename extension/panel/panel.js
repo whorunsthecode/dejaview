@@ -79,8 +79,17 @@ form.addEventListener("submit", async (e) => {
     const reply = await request(MSG.RUN, { goal });
     if (reply?.ok) {
       renderEvent(
-        panelEvent("result", "Worker acknowledged the run.", `${reply.tabCount} tabs open. ${reply.note ?? ""}`.trim())
+        panelEvent(
+          "result",
+          `${reply.total} tabs enumerated.`,
+          `${reply.dated} dated from history, ${reply.undated} undated. ${reply.note ?? ""}`.trim()
+        )
       );
+      if (reply.violations) {
+        renderEvent(
+          panelEvent("error", `${reply.violations} tabs broke the Tab contract.`, "See the worker console.")
+        );
+      }
     } else {
       renderEvent(panelEvent("error", "Worker rejected the run.", reply?.error ?? "no reason given"));
     }

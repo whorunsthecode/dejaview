@@ -32,8 +32,9 @@ export function setApiKey(key) {
   injectedKey = key || null;
 }
 
-function resolveKey() {
+function resolveKey(explicit) {
   const key =
+    explicit ??
     injectedKey ??
     (typeof process !== "undefined" ? process.env?.EXA_API_KEY : null) ??
     null;
@@ -50,19 +51,22 @@ function resolveKey() {
  * Search the web. Returns page excerpts, not a synthesized answer: the agent does its
  * own reasoning over these, the same way it does over tab text.
  * @param {string} query
- * @param {{signal?: AbortSignal}} [opts]
+ * @param {{signal?: AbortSignal, fetchImpl?: typeof fetch, apiKey?: string}} [opts]
+ *   fetchImpl and apiKey let a host inject its own transport and key (tests, per-run env)
+ *   instead of relying on the globals.
  * @returns {Promise<SearchResult[]>}
  */
 export async function search(query, opts = {}) {
+  const fetchImpl = opts.fetchImpl ?? fetch;
   if (typeof query !== "string" || !query.trim()) {
     throw new Error("exa.search: query must be a non-empty string");
   }
 
-  const res = await fetch(SEARCH_ENDPOINT, {
+  const res = await fetchImpl(SEARCH_ENDPOINT, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": resolveKey()
+      "x-api-key": resolveKey(opts.apiKey)
     },
     body: JSON.stringify({
       query,
